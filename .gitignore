@@ -1,0 +1,28 @@
+# Binaries
+bin/
+sandforge
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test related
+*.test
+*.out
+coverage.txt
+
+# Dependency directories
+# vendor/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Go specific
+go.sum
