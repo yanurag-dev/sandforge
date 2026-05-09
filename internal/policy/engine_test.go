@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -180,6 +181,59 @@ func TestEvaluateSandbox(t *testing.T) {
 			err := engine.EvaluateSandbox(tt.spec)
 			if err != tt.wantError {
 				t.Errorf("EvaluateSandbox() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestEvaluateExec(t *testing.T) {
+	engine := &Engine{
+		AllowedCommands: []string{"git", "npm", "ls"},
+	}
+
+	tests := []struct {
+		name      string
+		command   []string
+		wantError error
+	}{
+		{
+			name:      "Allowed command (git)",
+			command:   []string{"git", "push"},
+			wantError: nil,
+		},
+		{
+			name:      "Allowed command (npm)",
+			command:   []string{"npm", "test"},
+			wantError: nil,
+		},
+		{
+			name:      "Forbidden command (sudo)",
+			command:   []string{"sudo", "rm", "-rf", "/"},
+			wantError: ErrForbiddenCommand,
+		},
+		{
+			name:      "Empty command slice",
+			command:   []string{},
+			wantError: errors.New("no command provided"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := api.ExecRequest{
+				Command: tt.command,
+			}
+			err := engine.EvaluateExec(req)
+
+			if tt.name == "Empty command slice" {
+				if err == nil || err.Error() != tt.wantError.Error() {
+					t.Errorf("EvaluateExec() error = %v, wantError %v", err, tt.wantError)
+				}
+				return
+			}
+
+			if err != tt.wantError {
+				t.Errorf("EvaluateExec() error = %v, wantError %v", err, tt.wantError)
 			}
 		})
 	}

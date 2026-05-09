@@ -7,12 +7,12 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
 
 - [x] **1.1 Project Scaffolding**: Go workspace, directory structure, and `go.mod`.
 - [x] **1.2 Core API Contracts**: Define `SandboxSpec`, `ExecRequest`, and `SandboxBackend` interfaces.
-- [ ] **1.3 Policy Engine**:
+- [x] **1.3 Policy Engine**:
     - [x] Filesystem path validation (whitelist logic) [#1](https://github.com/yanurag-dev/sandforge/issues/1).
     - [x] Network mode enforcement (Offline/Fetch/Full) [#2](https://github.com/yanurag-dev/sandforge/issues/2).
     - [x] Resource limit validation (CPU/Memory/Disk) [#2](https://github.com/yanurag-dev/sandforge/issues/2).
-    - [ ] Command family filtering [#3](https://github.com/yanurag-dev/sandforge/issues/3).
-- [ ] **1.4 Testing**: Unit tests for policy enforcement.
+    - [x] Command family filtering [#3](https://github.com/yanurag-dev/sandforge/issues/3).
+- [x] **1.4 Testing**: Unit tests for policy enforcement.
 
 ## Phase 2: Orchestration & Mocking
 *Goal: Build the state machine that manages sandbox lifecycles.*

@@ -13,6 +13,7 @@ var (
 	ErrPathNotAbs            = errors.New("host path must be an absolute path")
 	ErrResourceLimitExceeded = errors.New("requested resource exceeds policy limits")
 	ErrInvalidNetworkMode    = errors.New("requested network mode is not allowed")
+	ErrForbiddenCommand      = errors.New("command is not allowed by policy")
 )
 
 type Engine struct {
@@ -22,6 +23,7 @@ type Engine struct {
 	MaxMemoryMb         int
 	MaxDiskGb           int
 	AllowedNetworkModes []string
+	AllowedCommands     []string
 }
 
 func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
@@ -87,6 +89,26 @@ func (e *Engine) EvaluateSandbox(spec api.SandboxSpec) error {
 
 	if !allowed {
 		return ErrInvalidNetworkMode
+	}
+	return nil
+}
+
+func (e *Engine) EvaluateExec(req api.ExecRequest) error {
+	if len(req.Command) == 0 {
+		return errors.New("no command provided")
+	}
+
+	binary := req.Command[0]
+	allowed := false
+	for _, command := range e.AllowedCommands {
+		if binary == command {
+			allowed = true
+			break
+		}
+	}
+
+	if !allowed {
+		return ErrForbiddenCommand
 	}
 	return nil
 }
