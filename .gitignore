@@ -1,6 +1,5 @@
 # Binaries
 bin/
-sandforge
 *.exe
 *.exe~
 *.dll
