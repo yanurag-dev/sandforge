@@ -93,13 +93,13 @@ func (e *Engine) EvaluateSandbox(spec api.SandboxSpec) error {
 	return nil
 }
 
-func (e *Engine) EvaluateExec (req api.ExecRequest) error {
+func (e *Engine) EvaluateExec(req api.ExecRequest) error {
 	if len(req.Command) == 0 {
 		return errors.New("no command provided")
 	}
 
 	binary := req.Command[0]
-	allowed := false 
+	allowed := false
 	for _, command := range e.AllowedCommands {
 		if binary == command {
 			allowed = true
