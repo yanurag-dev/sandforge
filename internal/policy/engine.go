@@ -9,13 +9,19 @@ import (
 )
 
 var (
-	ErrForbiddenHostPath = errors.New("requested host path is forbidden by policy")
-	ErrPathNotAbs        = errors.New("host path must be an absolute path")
+	ErrForbiddenHostPath     = errors.New("requested host path is forbidden by policy")
+	ErrPathNotAbs            = errors.New("host path must be an absolute path")
+	ErrResourceLimitExceeded = errors.New("requested resource exceeds policy limits")
+	ErrInvalidNetworkMode    = errors.New("requested network mode is not allowed")
 )
 
 type Engine struct {
 	AllowedHostPrefixes []string
 	BlockedHostPatterns []string
+	MaxCPU              int
+	MaxMemoryMb         int
+	MaxDiskGb           int
+	AllowedNetworkModes []string
 }
 
 func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
@@ -56,6 +62,31 @@ func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
 				return ErrForbiddenHostPath
 			}
 		}
+	}
+	return nil
+}
+
+func (e *Engine) EvaluateSandbox(spec api.SandboxSpec) error {
+	if spec.CPU > e.MaxCPU {
+		return ErrResourceLimitExceeded
+	}
+	if spec.MemoryMb > e.MaxMemoryMb {
+		return ErrResourceLimitExceeded
+	}
+	if spec.DiskGb > e.MaxDiskGb {
+		return ErrResourceLimitExceeded
+	}
+
+	allowed := false
+	for _, mode := range e.AllowedNetworkModes {
+		if spec.NetworkMode == mode {
+			allowed = true
+			break
+		}
+	}
+
+	if !allowed {
+		return ErrInvalidNetworkMode
 	}
 	return nil
 }

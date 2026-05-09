@@ -115,3 +115,72 @@ func TestEvaluateMount(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluateSandbox(t *testing.T) {
+	engine := &Engine{
+		MaxCPU:              2,
+		MaxMemoryMb:         2048,
+		MaxDiskGb:           10,
+		AllowedNetworkModes: []string{"offline", "fetch"},
+	}
+
+	tests := []struct {
+		name      string
+		spec      api.SandboxSpec
+		wantError error
+	}{
+		{
+			name: "Valid spec",
+			spec: api.SandboxSpec{
+				CPU:         1,
+				MemoryMb:    1024,
+				DiskGb:      5,
+				NetworkMode: "offline",
+			},
+			wantError: nil,
+		},
+		{
+			name: "CPU limit exceeded",
+			spec: api.SandboxSpec{
+				CPU: 4,
+			},
+			wantError: ErrResourceLimitExceeded,
+		},
+		{
+			name: "Memory limit exceeded",
+			spec: api.SandboxSpec{
+				CPU:      1,
+				MemoryMb: 4096,
+			},
+			wantError: ErrResourceLimitExceeded,
+		},
+		{
+			name: "Disk limit exceeded",
+			spec: api.SandboxSpec{
+				CPU:      1,
+				MemoryMb: 1024,
+				DiskGb:   20,
+			},
+			wantError: ErrResourceLimitExceeded,
+		},
+		{
+			name: "Forbidden network mode",
+			spec: api.SandboxSpec{
+				CPU:         1,
+				MemoryMb:    1024,
+				DiskGb:      5,
+				NetworkMode: "full",
+			},
+			wantError: ErrInvalidNetworkMode,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := engine.EvaluateSandbox(tt.spec)
+			if err != tt.wantError {
+				t.Errorf("EvaluateSandbox() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}
