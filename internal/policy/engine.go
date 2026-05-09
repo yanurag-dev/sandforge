@@ -25,9 +25,19 @@ func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
 		return ErrPathNotAbs
 	}
 
+	// Resolve symlinks to prevent bypasses (e.g., a symlink pointing to /etc)
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err // Path must exist to be validated
+	}
+	path = resolved
+
 	allowed := false
 	for _, prefix := range e.AllowedHostPrefixes {
-		p := filepath.Clean(prefix)
+		p, err := filepath.EvalSymlinks(filepath.Clean(prefix))
+		if err != nil {
+			continue // Skip invalid prefixes
+		}
 		if path == p || strings.HasPrefix(path, p+string(filepath.Separator)) {
 			allowed = true
 			break
@@ -38,9 +48,13 @@ func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
 		return ErrForbiddenHostPath
 	}
 
+	// Precise segment matching for blocklist to avoid false positives
+	segments := strings.Split(path, string(filepath.Separator))
 	for _, pattern := range e.BlockedHostPatterns {
-		if strings.Contains(path, pattern) {
-			return ErrForbiddenHostPath
+		for _, segment := range segments {
+			if segment == pattern {
+				return ErrForbiddenHostPath
+			}
 		}
 	}
 	return nil

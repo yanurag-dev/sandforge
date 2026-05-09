@@ -68,5 +68,4 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
 ---
 ## Progress Legend
 - [ ] To Do
-- [/] In Progress
 - [x] Done
