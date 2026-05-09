@@ -1,6 +1,7 @@
 # Sandforge 🛠️
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/blob/main/go.mod)
+[![CI](https://github.com/yanurag-dev/sandforge/actions/workflows/ci.yml/badge.svg)](https://github.com/yanurag-dev/sandforge/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/pulls)
