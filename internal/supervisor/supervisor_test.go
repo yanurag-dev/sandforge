@@ -1,6 +1,8 @@
 package supervisor
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/sandforge/sandforge/internal/backend"
@@ -18,7 +20,10 @@ func TestSupervisorLifecycle(t *testing.T) {
 		AllowedNetworkModes: []string{"offline"},
 		AllowedCommands:     []string{"ls", "echo"},
 	}
-	sup := NewSupervisor(mockBackend, engine)
+	sup, err := NewSupervisor(mockBackend, engine)
+	if err != nil {
+		t.Fatalf("Failed to create supervisor: %v", err)
+	}
 
 	spec := api.SandboxSpec{
 		CPU:         2,
@@ -36,12 +41,15 @@ func TestSupervisorLifecycle(t *testing.T) {
 			t.Fatalf("Failed to start sandbox: %v", err)
 		}
 
+		sup.mu.RLock()
 		instance, exists := sup.instances[id]
+		sup.mu.RUnlock()
+
 		if !exists {
 			t.Fatal("Instance not found in supervisor map")
 		}
-		if instance.State != StateReady {
-			t.Errorf("Expected state Ready, got %v", instance.State)
+		if instance.GetState() != StateReady {
+			t.Errorf("Expected state Ready, got %v", instance.GetState())
 		}
 	})
 
@@ -71,14 +79,48 @@ func TestSupervisorLifecycle(t *testing.T) {
 		}
 	})
 
-	// 4. Test Stop
+	// 4. Test Concurrent Access
+	t.Run("ConcurrentAccess", func(t *testing.T) {
+		var wg sync.WaitGroup
+		numWorkers := 10
+		idPrefix := "concurrent-"
+
+		// Start multiple sandboxes
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				cid := fmt.Sprintf("%s%d", idPrefix, idx)
+				if err := sup.Start(cid, spec); err != nil {
+					t.Errorf("Failed to start concurrent sandbox %d: %v", idx, err)
+				}
+				
+				// Run a command
+				req := api.ExecRequest{Command: []string{"echo", "hello"}}
+				if _, err := sup.RunCommand(cid, req); err != nil {
+					t.Errorf("Failed to run command in concurrent sandbox %d: %v", idx, err)
+				}
+
+				// Stop
+				if err := sup.Stop(cid); err != nil {
+					t.Errorf("Failed to stop concurrent sandbox %d: %v", idx, err)
+				}
+			}(i)
+		}
+		wg.Wait()
+	})
+
+	// 5. Test Stop
 	t.Run("Stop", func(t *testing.T) {
 		err := sup.Stop(id)
 		if err != nil {
 			t.Fatalf("Failed to stop sandbox: %v", err)
 		}
 
+		sup.mu.RLock()
 		_, exists := sup.instances[id]
+		sup.mu.RUnlock()
+
 		if exists {
 			t.Error("Instance should have been removed from map after Stop")
 		}

@@ -10,27 +10,41 @@ import (
 type MockBackend struct {
 	mu        sync.RWMutex
 	sandboxes map[string]api.SandboxSpec
+	nextID    int
 }
 
 func NewMockBackend() *MockBackend {
 	return &MockBackend{
 		sandboxes: make(map[string]api.SandboxSpec),
+		nextID:    1,
 	}
 }
 
 func (m *MockBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	handle := fmt.Sprintf("mock-%d", len(m.sandboxes))
+	handle := fmt.Sprintf("mock-%d", m.nextID)
+	m.nextID++
 	m.sandboxes[handle] = spec
 	return handle, nil
 }
 
 func (m *MockBackend) MountWorkspace(handle string, mount api.WorkspaceMount) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return fmt.Errorf("sandbox handle not found: %s", handle)
+	}
 	return nil
 }
 
 func (m *MockBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return api.ExecResult{}, fmt.Errorf("sandbox handle not found: %s", handle)
+	}
+
 	return api.ExecResult{
 		ExitCode: 0,
 		Stdout:   fmt.Sprintf("mock output for %v", req.Command),
@@ -38,12 +52,20 @@ func (m *MockBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, 
 }
 
 func (m *MockBackend) CopyOut(handle string, path string, dest string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return fmt.Errorf("sandbox handle not found: %s", handle)
+	}
 	return nil
 }
 
 func (m *MockBackend) DestroySandbox(handle string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return fmt.Errorf("sandbox handle not found: %s", handle)
+	}
 	delete(m.sandboxes, handle)
 	return nil
 }
