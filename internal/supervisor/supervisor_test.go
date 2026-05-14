@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -168,7 +169,8 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 	})
 
 	t.Run("CopyOut", func(t *testing.T) {
-		err := sup.CopyOut(id, "/workspace/log.txt", "/tmp/log.txt")
+		dest := filepath.Join(tmpDir, "log.txt")
+		err := sup.CopyOut(id, "/workspace/log.txt", dest)
 		if err != nil {
 			t.Errorf("Expected CopyOut to succeed, got %v", err)
 		}

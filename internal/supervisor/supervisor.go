@@ -259,7 +259,12 @@ func (s *Supervisor) CopyOut(id string, path string, dest string) error {
 		return errors.New("sandbox not found")
 	}
 
-	// 2. Validate state
+	// 2. Policy check for destination host path
+	if err := s.policy.EvaluateHostPath(dest); err != nil {
+		return fmt.Errorf("policy denied copy out destination: %w", err)
+	}
+
+	// 3. Validate state
 	instance.mu.RLock()
 	handle := instance.Handle
 	state := instance.State
@@ -270,7 +275,7 @@ func (s *Supervisor) CopyOut(id string, path string, dest string) error {
 		return fmt.Errorf("sandbox is in state %s, must be %s or %s to copy out", state, StateReady, StateExecuting)
 	}
 
-	// 3. Call backend
+	// 4. Call backend
 	return s.backend.CopyOut(handle, path, dest)
 }
 
