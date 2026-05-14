@@ -222,23 +222,29 @@ func (s *Supervisor) MountWorkspace(id string, mount api.WorkspaceMount) error {
 		return errors.New("sandbox not found")
 	}
 
-	// 2. Validate state
+	// 2. Initial state check
+	instance.mu.RLock()
+	if instance.State != StateReady {
+		instance.mu.RUnlock()
+		return fmt.Errorf("sandbox is in state %s, must be %s to mount", instance.State, StateReady)
+	}
+	instance.mu.RUnlock()
+
+	// 3. Evaluate policy (without holding instance lock)
+	if err := s.policy.EvaluateMount(mount); err != nil {
+		return err
+	}
+
+	// 4. Re-check state and get handle
 	instance.mu.Lock()
 	if instance.State != StateReady {
 		instance.mu.Unlock()
 		return fmt.Errorf("sandbox is in state %s, must be %s to mount", instance.State, StateReady)
 	}
-
-	// 3. Evaluate policy
-	if err := s.policy.EvaluateMount(mount); err != nil {
-		instance.mu.Unlock()
-		return err
-	}
-
 	handle := instance.Handle
 	instance.mu.Unlock()
 
-	// 4. Call backend
+	// 5. Call backend
 	return s.backend.MountWorkspace(handle, mount)
 }
 
