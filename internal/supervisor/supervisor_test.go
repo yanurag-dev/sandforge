@@ -141,12 +141,18 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		MaxDiskGb:           10,
 		AllowedNetworkModes: []string{"offline"},
 	}
-	sup, _ := NewSupervisor(mockBackend, engine)
+	sup, err := NewSupervisor(mockBackend, engine)
+	if err != nil {
+		t.Fatalf("Failed to create supervisor: %v", err)
+	}
 
 	id := "test-mount"
 	spec := api.SandboxSpec{CPU: 1, MemoryMb: 512, DiskGb: 1, NetworkMode: "offline"}
 	
-	_ = sup.Start(id, spec)
+	if err := sup.Start(id, spec); err != nil {
+		t.Fatalf("Failed to start sandbox: %v", err)
+	}
+	defer sup.Stop(id)
 
 	t.Run("ValidMount", func(t *testing.T) {
 		err := sup.MountWorkspace(id, api.WorkspaceMount{
@@ -158,7 +164,7 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		}
 	})
 
-	t.Run("InvalidMount", func(t *testing.T) {
+	t.Run("InvalidMount_Path", func(t *testing.T) {
 		err := sup.MountWorkspace(id, api.WorkspaceMount{
 			HostPath:  "/etc",
 			GuestPath: "/workspace",
@@ -168,12 +174,54 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		}
 	})
 
-	t.Run("CopyOut", func(t *testing.T) {
+	t.Run("InvalidMount_State", func(t *testing.T) {
+		// Manually set state to Executing to test rejection
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+		
+		originalState := instance.GetState()
+		instance.SetState(StateExecuting)
+		defer instance.SetState(originalState)
+
+		err := sup.MountWorkspace(id, api.WorkspaceMount{
+			HostPath:  tmpDir,
+			GuestPath: "/workspace",
+		})
+		if err == nil {
+			t.Error("Expected mount to fail when state is Executing")
+		}
+	})
+
+	t.Run("CopyOut_Valid", func(t *testing.T) {
 		dest := filepath.Join(tmpDir, "log.txt")
 		err := sup.CopyOut(id, "/workspace/log.txt", dest)
 		if err != nil {
 			t.Errorf("Expected CopyOut to succeed, got %v", err)
 		}
 	})
+
+	t.Run("CopyOut_InvalidPath", func(t *testing.T) {
+		err := sup.CopyOut(id, "/workspace/log.txt", "/etc/shadow")
+		if err == nil {
+			t.Error("Expected CopyOut to /etc/shadow to be blocked by policy")
+		}
+	})
+
+	t.Run("CopyOut_InvalidState", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateError)
+		defer instance.SetState(originalState)
+
+		err := sup.CopyOut(id, "/workspace/log.txt", filepath.Join(tmpDir, "error.txt"))
+		if err == nil {
+			t.Error("Expected CopyOut to fail when state is Error")
+		}
+	})
 }
+
 
