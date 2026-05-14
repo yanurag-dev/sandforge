@@ -27,18 +27,30 @@ type Engine struct {
 }
 
 func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
-	path := filepath.Clean(mount.HostPath)
+	return e.EvaluateHostPath(mount.HostPath)
+}
+
+func (e *Engine) EvaluateHostPath(path string) error {
+	path = filepath.Clean(path)
 
 	if !filepath.IsAbs(path) {
 		return ErrPathNotAbs
 	}
 
 	// Resolve symlinks to prevent bypasses (e.g., a symlink pointing to /etc)
+	// For CopyOut, the file might not exist yet, so we resolve the parent directory if the path itself doesn't exist.
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return err // Path must exist to be validated
+		// If path doesn't exist, try resolving the directory
+		dir := filepath.Dir(path)
+		resolvedDir, errDir := filepath.EvalSymlinks(dir)
+		if errDir != nil {
+			return errDir
+		}
+		path = filepath.Join(resolvedDir, filepath.Base(path))
+	} else {
+		path = resolved
 	}
-	path = resolved
 
 	allowed := false
 	for _, prefix := range e.AllowedHostPrefixes {
@@ -67,6 +79,7 @@ func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
 	}
 	return nil
 }
+
 
 func (e *Engine) EvaluateSandbox(spec api.SandboxSpec) error {
 	if spec.CPU > e.MaxCPU {

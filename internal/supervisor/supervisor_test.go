@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -126,3 +127,101 @@ func TestSupervisorLifecycle(t *testing.T) {
 		}
 	})
 }
+
+func TestSupervisorMountAndCopy(t *testing.T) {
+	mockBackend := backend.NewMockBackend()
+	
+	// Create a temp dir for allowed mounts
+	tmpDir := t.TempDir()
+	
+	engine := &policy.Engine{
+		AllowedHostPrefixes: []string{tmpDir},
+		MaxCPU:              4,
+		MaxMemoryMb:         4096,
+		MaxDiskGb:           10,
+		AllowedNetworkModes: []string{"offline"},
+	}
+	sup, err := NewSupervisor(mockBackend, engine)
+	if err != nil {
+		t.Fatalf("Failed to create supervisor: %v", err)
+	}
+
+	id := "test-mount"
+	spec := api.SandboxSpec{CPU: 1, MemoryMb: 512, DiskGb: 1, NetworkMode: "offline"}
+	
+	if err := sup.Start(id, spec); err != nil {
+		t.Fatalf("Failed to start sandbox: %v", err)
+	}
+	defer sup.Stop(id)
+
+	t.Run("ValidMount", func(t *testing.T) {
+		err := sup.MountWorkspace(id, api.WorkspaceMount{
+			HostPath:  tmpDir,
+			GuestPath: "/workspace",
+		})
+		if err != nil {
+			t.Errorf("Expected valid mount to succeed, got %v", err)
+		}
+	})
+
+	t.Run("InvalidMount_Path", func(t *testing.T) {
+		err := sup.MountWorkspace(id, api.WorkspaceMount{
+			HostPath:  "/etc",
+			GuestPath: "/workspace",
+		})
+		if err == nil {
+			t.Error("Expected mount to /etc to be blocked by policy")
+		}
+	})
+
+	t.Run("InvalidMount_State", func(t *testing.T) {
+		// Manually set state to Executing to test rejection
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+		
+		originalState := instance.GetState()
+		instance.SetState(StateExecuting)
+		defer instance.SetState(originalState)
+
+		err := sup.MountWorkspace(id, api.WorkspaceMount{
+			HostPath:  tmpDir,
+			GuestPath: "/workspace",
+		})
+		if err == nil {
+			t.Error("Expected mount to fail when state is Executing")
+		}
+	})
+
+	t.Run("CopyOut_Valid", func(t *testing.T) {
+		dest := filepath.Join(tmpDir, "log.txt")
+		err := sup.CopyOut(id, "/workspace/log.txt", dest)
+		if err != nil {
+			t.Errorf("Expected CopyOut to succeed, got %v", err)
+		}
+	})
+
+	t.Run("CopyOut_InvalidPath", func(t *testing.T) {
+		err := sup.CopyOut(id, "/workspace/log.txt", "/etc/shadow")
+		if err == nil {
+			t.Error("Expected CopyOut to /etc/shadow to be blocked by policy")
+		}
+	})
+
+	t.Run("CopyOut_InvalidState", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateError)
+		defer instance.SetState(originalState)
+
+		err := sup.CopyOut(id, "/workspace/log.txt", filepath.Join(tmpDir, "error.txt"))
+		if err == nil {
+			t.Error("Expected CopyOut to fail when state is Error")
+		}
+	})
+}
+
+
