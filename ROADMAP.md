@@ -17,11 +17,11 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
 ## Phase 2: Orchestration & Mocking
 *Goal: Build the state machine that manages sandbox lifecycles.*
 
-- [ ] **2.1 Sandbox Supervisor**:
-    - [ ] Implementation of the Lifecycle State Machine (Requested -> Provisioning -> Ready -> ...).
-    - [ ] Concurrent session management.
-- [ ] **2.2 Mock Backend Driver**:
-    - [ ] An in-memory/process-based driver for testing the supervisor without a VM.
+- [/] **2.1 Sandbox Supervisor**:
+    - [/] Implementation of the Lifecycle State Machine (Core Start/Run/Stop done; Mount/CopyOut pending).
+    - [x] Concurrent session management.
+- [x] **2.2 Mock Backend Driver**:
+    - [x] An in-memory/process-based driver for testing the supervisor without a VM.
 - [ ] **2.3 Artifact Manager**: Basic logic to handle "CopyOut" for logs and files.
 
 ## Phase 3: macOS Execution Plane (macos-vz)

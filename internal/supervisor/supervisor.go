@@ -13,14 +13,14 @@ import (
 type State string
 
 const (
-	StateRequested          State = "requested"
-	StateProvisioning       State = "provisioning"
-	StateReady              State = "ready"
-	StateExecuting          State = "executing"
-	StateCopyingArtifacts   State = "copying_artifacts"
-	StateDestroying         State = "destroying"
-	StateDestroyed          State = "destroyed"
-	StateError              State = "error"
+	StateRequested        State = "requested"
+	StateProvisioning     State = "provisioning"
+	StateReady            State = "ready"
+	StateExecuting        State = "executing"
+	StateCopyingArtifacts State = "copying_artifacts"
+	StateDestroying       State = "destroying"
+	StateDestroyed        State = "destroyed"
+	StateError            State = "error"
 )
 
 // SandboxInstance tracks the runtime state of a single sandbox.
@@ -210,3 +210,61 @@ func (s *Supervisor) Stop(id string) error {
 
 	return nil
 }
+
+// MountWorkspace allows attaching a host path to the sandbox.
+func (s *Supervisor) MountWorkspace(id string, mount api.WorkspaceMount) error {
+	// 1. Find the instance
+	s.mu.RLock()
+	instance, exists := s.instances[id]
+	s.mu.RUnlock()
+
+	if !exists {
+		return errors.New("sandbox not found")
+	}
+
+	// 2. Validate state
+	instance.mu.Lock()
+	if instance.State != StateReady {
+		instance.mu.Unlock()
+		return fmt.Errorf("sandbox is in state %s, must be %s to mount", instance.State, StateReady)
+	}
+
+	// 3. Evaluate policy
+	if err := s.policy.EvaluateMount(mount); err != nil {
+		instance.mu.Unlock()
+		return err
+	}
+
+	handle := instance.Handle
+	instance.mu.Unlock()
+
+	// 4. Call backend
+	return s.backend.MountWorkspace(handle, mount)
+}
+
+// CopyOut retrieves a file or directory from the sandbox.
+func (s *Supervisor) CopyOut(id string, path string, dest string) error {
+	// 1. Find the instance
+	s.mu.RLock()
+	instance, exists := s.instances[id]
+	s.mu.RUnlock()
+
+	if !exists {
+		return errors.New("sandbox not found")
+	}
+
+	// 2. Validate state
+	instance.mu.RLock()
+	handle := instance.Handle
+	state := instance.State
+	instance.mu.RUnlock()
+
+	// We allow CopyOut if it's Ready or Executing (e.g. streaming logs)
+	if state != StateReady && state != StateExecuting {
+		return fmt.Errorf("sandbox is in state %s, must be %s or %s to copy out", state, StateReady, StateExecuting)
+	}
+
+	// 3. Call backend
+	return s.backend.CopyOut(handle, path, dest)
+}
+
