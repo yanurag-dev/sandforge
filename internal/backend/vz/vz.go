@@ -77,9 +77,6 @@ func (v *VZBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
 }
 
 func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.WorkspaceMount) (string, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-
 	kernelPath := v.kernelPath
 	initrdPath := v.initrdPath
 
@@ -181,7 +178,9 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 	}
 
 	handle := fmt.Sprintf("vz-%p", vm)
+	v.mu.Lock()
 	v.sandboxes[handle] = &sandboxEntry{vm: vm, socket: socketDevices[0]}
+	v.mu.Unlock()
 
 	return handle, nil
 }
@@ -195,11 +194,10 @@ func (v *VZBackend) MountWorkspace(handle string, mount api.WorkspaceMount) erro
 		return fmt.Errorf("sandbox handle not found: %s", handle)
 	}
 
-	// Virtio-fs devices cannot be hot-plugged after boot with Apple VZ.
-	// Mounts must be provided to CreateSandboxWithMounts before VM start.
-	fmt.Printf("VZBackend: hot-plug not supported; mount %s→%s (RO:%v) must be pre-configured\n",
-		mount.HostPath, mount.GuestPath, mount.ReadOnly)
-	return nil
+	return fmt.Errorf(
+		"mount hot-plug not supported on VZ backend; provide mounts at sandbox creation (host=%s guest=%s ro=%v)",
+		mount.HostPath, mount.GuestPath, mount.ReadOnly,
+	)
 }
 
 // Exec sends an execRequest JSON message to the in-guest agent over VSOCK and

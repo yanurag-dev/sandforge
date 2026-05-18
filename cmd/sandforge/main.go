@@ -27,7 +27,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := controlplane.NewServer(sup)
+	server, err := controlplane.NewServer(sup)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create server: %v\n", err)
+		os.Exit(1)
+	}
 	if err := server.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting server: %v\n", err)
 		os.Exit(1)

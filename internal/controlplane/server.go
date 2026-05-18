@@ -24,12 +24,15 @@ type Server struct {
 	httpServer *http.Server
 }
 
-func NewServer(sup *supervisor.Supervisor) *Server {
+func NewServer(sup *supervisor.Supervisor) (*Server, error) {
 	return NewServerWithAddr(sup, defaultAddr)
 }
 
-func NewServerWithAddr(sup *supervisor.Supervisor, addr string) *Server {
-	return &Server{supervisor: sup, addr: addr}
+func NewServerWithAddr(sup *supervisor.Supervisor, addr string) (*Server, error) {
+	if sup == nil {
+		return nil, fmt.Errorf("supervisor must not be nil")
+	}
+	return &Server{supervisor: sup, addr: addr}, nil
 }
 
 func (s *Server) Start() error {
@@ -170,7 +173,9 @@ type errorResponse struct {
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("writeJSON encode error: %v", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {

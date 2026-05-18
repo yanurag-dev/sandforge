@@ -65,7 +65,6 @@ curl -fsSL "$APKINDEX_URL" -o "$WORK_DIR/APKINDEX.tar.gz"
 tar -xzf "$WORK_DIR/APKINDEX.tar.gz" -C "$WORK_DIR" APKINDEX 2>/dev/null || true
 
 # Parse kernel package version from APKINDEX
-KERNEL_PKG="linux-virt"
 KERNEL_VER=$(awk '/^P:linux-virt$/{found=1} found && /^V:/{print $0; exit}' \
     "$WORK_DIR/APKINDEX" | sed 's/^V://')
 
