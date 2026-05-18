@@ -175,6 +175,18 @@ func (s *Supervisor) RunCommand(id string, req api.ExecRequest) (api.ExecResult,
 	return result, nil
 }
 
+// GetState returns the current state of a sandbox by ID.
+func (s *Supervisor) GetState(id string) (State, error) {
+	s.mu.RLock()
+	instance, exists := s.instances[id]
+	s.mu.RUnlock()
+
+	if !exists {
+		return "", errors.New("sandbox not found")
+	}
+	return instance.GetState(), nil
+}
+
 // Stop will clean up the sandbox.
 func (s *Supervisor) Stop(id string) error {
 	// 1. Find the instance
