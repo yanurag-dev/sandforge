@@ -4,9 +4,11 @@ BIN       := bin/sandforge
 AGENT_BIN := bin/sandforge-agent
 
 build:
+	mkdir -p $(dir $(BIN))
 	go build -o $(BIN) ./cmd/sandforge
 
 agent:
+	mkdir -p $(dir $(AGENT_BIN))
 	GOOS=linux GOARCH=amd64 go build -o $(AGENT_BIN) ./cmd/guest-agent
 
 run: build

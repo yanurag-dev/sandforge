@@ -62,8 +62,13 @@ if [ "$NETWORK_MODE" = "fetch" ]; then
     udhcpc -i eth0 -q 2>/dev/null || true
 
     # Apply nftables allowlist: DNS + HTTPS to package registries only.
-    # Blocks all other outbound traffic.
-    nft -f - <<'NFT'
+    # Fail closed — abort boot if rules cannot be installed.
+    # NOTE: CIDRs cover shared CDN ranges; a host-side proxy is needed for
+    # true domain-level enforcement.
+    if ! nft -f - <<'NFT'; then
+        echo "ERROR: failed to apply fetch-mode firewall rules" >&2
+        exit 1
+    fi
 table inet sandforge {
     chain output {
         type filter hook output priority 0; policy drop;
@@ -71,16 +76,15 @@ table inet sandforge {
         # Allow loopback
         oif lo accept
 
-        # Allow VSOCK (not affected by nftables, but be explicit)
+        # Allow established/related (return traffic)
         meta l4proto { tcp, udp } ct state established,related accept
 
         # Allow DNS
         udp dport 53 accept
         tcp dport 53 accept
 
-        # Allow HTTPS to package registries only
-        # pypi.org, files.pythonhosted.org, npmjs.com, registry.npmjs.org,
-        # alpinelinux.org, github.com, objects.githubusercontent.com
+        # Allow HTTPS to package registry CDN ranges
+        # (pypi, npmjs, alpinelinux, github — shared CDN; not domain-exact)
         tcp dport 443 ip daddr {
             151.101.0.0/17,
             104.16.0.0/12,
@@ -88,8 +92,6 @@ table inet sandforge {
             140.82.112.0/20,
             185.199.108.0/22
         } accept
-
-        # Drop everything else (policy drop handles it)
     }
     chain input {
         type filter hook input priority 0; policy accept;

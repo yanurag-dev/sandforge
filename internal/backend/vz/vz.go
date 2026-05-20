@@ -51,6 +51,14 @@ func (v *VZBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
 }
 
 func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.WorkspaceMount) (string, error) {
+	switch spec.NetworkMode {
+	case "", "offline":
+		spec.NetworkMode = "offline"
+	case "fetch":
+	default:
+		return "", fmt.Errorf("unsupported network mode: %q (must be offline or fetch)", spec.NetworkMode)
+	}
+
 	kernelPath := v.kernelPath
 	initrdPath := v.initrdPath
 

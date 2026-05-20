@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,7 +24,11 @@ import (
 	"github.com/sandforge/sandforge/pkg/agentproto"
 )
 
-const listenPort uint32 = 2222
+const (
+	listenPort    uint32        = 2222
+	envelopeRead  time.Duration = 10 * time.Second
+	defaultExec   time.Duration = 30 * time.Second
+)
 
 func main() {
 	ln, err := vsock.Listen(listenPort, nil)
@@ -45,11 +50,22 @@ func main() {
 
 func handleConn(conn net.Conn) {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(30 * time.Second))
+
+	// Short deadline for reading the envelope only.
+	if err := conn.SetReadDeadline(time.Now().Add(envelopeRead)); err != nil {
+		log.Printf("setReadDeadline: %v", err)
+		return
+	}
 
 	var env agentproto.Envelope
 	if err := agentproto.ReadEnvelope(conn, &env); err != nil {
 		writeResponse(conn, map[string]string{"error": "decode envelope: " + err.Error()})
+		return
+	}
+
+	// Clear deadline — per-operation handlers set their own.
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		log.Printf("clearDeadline: %v", err)
 		return
 	}
 
@@ -74,7 +90,7 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 		return
 	}
 
-	timeout := 30 * time.Second
+	timeout := defaultExec
 	if req.TimeoutSec > 0 {
 		timeout = time.Duration(req.TimeoutSec) * time.Second
 	}
@@ -95,14 +111,15 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 		}
 	}
 
-	stdout, err := cmd.Output()
-	var stderr []byte
-	exitCode := 0
+	// Use explicit buffers so stderr is captured even on successful exit.
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 
-	if err != nil {
+	exitCode := 0
+	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
-			stderr = exitErr.Stderr
 		} else {
 			writeResponse(w, agentproto.ExecResponse{ExitCode: 1, Stderr: err.Error()})
 			return
@@ -111,8 +128,8 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 
 	writeResponse(w, agentproto.ExecResponse{
 		ExitCode: exitCode,
-		Stdout:   string(stdout),
-		Stderr:   string(stderr),
+		Stdout:   stdoutBuf.String(),
+		Stderr:   stderrBuf.String(),
 	})
 }
 
