@@ -32,8 +32,8 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
     - [x] VM configuration (vCPU, Memory) via `Code-Hex/vz`.
     - [x] Virtio-fs workspace mounting via `CreateSandboxWithMounts`.
     - [x] VSOCK command transport — host-side dial + JSON envelope protocol.
-- [ ] **3.3 Guest Agent**: Binary inside VM listening on VSOCK port 2222 to handle `exec`/`copyout` ops.
-- [ ] **3.4 Networking**: Implement `offline` and `fetch` (NAT) modes using VZ.
+- [x] **3.3 Guest Agent**: `cmd/guest-agent` binary (linux/amd64) listens on VSOCK port 2222; handles `exec` (with timeout) and `copyout` ops via `pkg/agentproto` JSON envelope protocol; injected into initrd by `build-images.sh`.
+- [x] **3.4 Networking**: `offline` = no NIC attached; `fetch` = VirtioNAT + nftables allowlist (DNS + HTTPS to package registries only) enforced in guest `/init`; mode passed via kernel cmdline.
 
 ## Phase 4: Linux Execution Plane (linux-kvm)
 *Goal: Parity for Linux hosts.*
