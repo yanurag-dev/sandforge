@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sandforge/sandforge/pkg/agentproto"
 	"github.com/sandforge/sandforge/pkg/api"
 )
 
@@ -51,15 +52,15 @@ func TestWriteReadJSON(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- writeJSON(client, "test-op", testPayload{Value: "hello"})
+		errCh <- agentproto.WriteRequest(client, "test-op", testPayload{Value: "hello"})
 	}()
 
-	var env agentEnvelope
-	if err := readJSON(server, &env); err != nil {
-		t.Fatalf("readJSON failed: %v", err)
+	var env agentproto.Envelope
+	if err := agentproto.ReadEnvelope(server, &env); err != nil {
+		t.Fatalf("ReadEnvelope failed: %v", err)
 	}
 	if err := <-errCh; err != nil {
-		t.Fatalf("writeJSON failed: %v", err)
+		t.Fatalf("WriteRequest failed: %v", err)
 	}
 
 	if env.Op != "test-op" {

@@ -48,6 +48,62 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev 2>/dev/null || mdev -s
 
+# Parse network mode from kernel cmdline (sandforge.network=offline|fetch)
+NETWORK_MODE="offline"
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in
+        sandforge.network=*) NETWORK_MODE="${arg#sandforge.network=}" ;;
+    esac
+done
+
+if [ "$NETWORK_MODE" = "fetch" ]; then
+    # Bring up eth0 via DHCP (VZ NAT provides DHCP)
+    ip link set eth0 up
+    udhcpc -i eth0 -q 2>/dev/null || true
+
+    # Apply nftables allowlist: DNS + HTTPS to package registries only.
+    # Blocks all other outbound traffic.
+    nft -f - <<'NFT'
+table inet sandforge {
+    chain output {
+        type filter hook output priority 0; policy drop;
+
+        # Allow loopback
+        oif lo accept
+
+        # Allow VSOCK (not affected by nftables, but be explicit)
+        meta l4proto { tcp, udp } ct state established,related accept
+
+        # Allow DNS
+        udp dport 53 accept
+        tcp dport 53 accept
+
+        # Allow HTTPS to package registries only
+        # pypi.org, files.pythonhosted.org, npmjs.com, registry.npmjs.org,
+        # alpinelinux.org, github.com, objects.githubusercontent.com
+        tcp dport 443 ip daddr {
+            151.101.0.0/17,
+            104.16.0.0/12,
+            199.232.0.0/16,
+            140.82.112.0/20,
+            185.199.108.0/22
+        } accept
+
+        # Drop everything else (policy drop handles it)
+    }
+    chain input {
+        type filter hook input priority 0; policy accept;
+    }
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+    }
+}
+NFT
+else
+    # offline: no network interface brought up — NAT device not attached anyway
+    ip link set eth0 down 2>/dev/null || true
+fi
+
 # Start guest agent (PID 2 — keeps VM alive)
 exec /usr/local/bin/sandforge-agent
 INIT

@@ -1,8 +1,7 @@
 //go:build linux
 
 // Guest agent runs inside the Linux VM. It listens on VSOCK port 2222 and
-// handles exec/copyout requests from the host using a newline-delimited JSON
-// envelope protocol matching the host-side vz.go implementation.
+// handles exec/copyout requests from the host using the agentproto protocol.
 //
 // Cross-compile from macOS host:
 //
@@ -21,36 +20,10 @@ import (
 	"time"
 
 	"github.com/mdlayher/vsock"
+	"github.com/sandforge/sandforge/pkg/agentproto"
 )
 
 const listenPort uint32 = 2222
-
-type envelope struct {
-	Op      string          `json:"op"`
-	Payload json.RawMessage `json:"payload"`
-}
-
-type execRequest struct {
-	Command    []string          `json:"command"`
-	CWD        string            `json:"cwd"`
-	Env        map[string]string `json:"env"`
-	TimeoutSec int               `json:"timeout_sec"`
-}
-
-type execResponse struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-}
-
-type copyOutRequest struct {
-	GuestPath string `json:"guest_path"`
-}
-
-type copyOutResponse struct {
-	Data  []byte `json:"data,omitempty"`
-	Error string `json:"error,omitempty"`
-}
 
 func main() {
 	ln, err := vsock.Listen(listenPort, nil)
@@ -74,9 +47,9 @@ func handleConn(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(30 * time.Second))
 
-	var env envelope
-	if err := json.NewDecoder(conn).Decode(&env); err != nil {
-		writeJSON(conn, map[string]string{"error": "decode envelope: " + err.Error()})
+	var env agentproto.Envelope
+	if err := agentproto.ReadEnvelope(conn, &env); err != nil {
+		writeResponse(conn, map[string]string{"error": "decode envelope: " + err.Error()})
 		return
 	}
 
@@ -86,18 +59,18 @@ func handleConn(conn net.Conn) {
 	case "copyout":
 		handleCopyOut(conn, env.Payload)
 	default:
-		writeJSON(conn, map[string]string{"error": "unknown op: " + env.Op})
+		writeResponse(conn, map[string]string{"error": "unknown op: " + env.Op})
 	}
 }
 
 func handleExec(w io.Writer, raw json.RawMessage) {
-	var req execRequest
+	var req agentproto.ExecRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
-		writeJSON(w, execResponse{ExitCode: 1, Stderr: "decode exec request: " + err.Error()})
+		writeResponse(w, agentproto.ExecResponse{ExitCode: 1, Stderr: "decode exec request: " + err.Error()})
 		return
 	}
 	if len(req.Command) == 0 {
-		writeJSON(w, execResponse{ExitCode: 1, Stderr: "empty command"})
+		writeResponse(w, agentproto.ExecResponse{ExitCode: 1, Stderr: "empty command"})
 		return
 	}
 
@@ -115,7 +88,6 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 		cmd.Dir = req.CWD
 	}
 
-	// Merge caller env on top of base env
 	if len(req.Env) > 0 {
 		cmd.Env = os.Environ()
 		for k, v := range req.Env {
@@ -132,12 +104,12 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 			exitCode = exitErr.ExitCode()
 			stderr = exitErr.Stderr
 		} else {
-			writeJSON(w, execResponse{ExitCode: 1, Stderr: err.Error()})
+			writeResponse(w, agentproto.ExecResponse{ExitCode: 1, Stderr: err.Error()})
 			return
 		}
 	}
 
-	writeJSON(w, execResponse{
+	writeResponse(w, agentproto.ExecResponse{
 		ExitCode: exitCode,
 		Stdout:   string(stdout),
 		Stderr:   string(stderr),
@@ -145,27 +117,27 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 }
 
 func handleCopyOut(w io.Writer, raw json.RawMessage) {
-	var req copyOutRequest
+	var req agentproto.CopyOutRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
-		writeJSON(w, copyOutResponse{Error: "decode copyout request: " + err.Error()})
+		writeResponse(w, agentproto.CopyOutResponse{Error: "decode copyout request: " + err.Error()})
 		return
 	}
 	if req.GuestPath == "" {
-		writeJSON(w, copyOutResponse{Error: "guest_path is required"})
+		writeResponse(w, agentproto.CopyOutResponse{Error: "guest_path is required"})
 		return
 	}
 
 	data, err := os.ReadFile(req.GuestPath)
 	if err != nil {
-		writeJSON(w, copyOutResponse{Error: err.Error()})
+		writeResponse(w, agentproto.CopyOutResponse{Error: err.Error()})
 		return
 	}
 
-	writeJSON(w, copyOutResponse{Data: data})
+	writeResponse(w, agentproto.CopyOutResponse{Data: data})
 }
 
-func writeJSON(w io.Writer, v any) {
+func writeResponse(w io.Writer, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("writeJSON: %v", err)
+		log.Printf("writeResponse: %v", err)
 	}
 }
