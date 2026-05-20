@@ -27,12 +27,13 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
 ## Phase 3: macOS Execution Plane (macos-vz)
 *Goal: Boot a real Linux VM on macOS using the Apple Virtualization Framework.*
 
-- [ ] **3.1 Worker Image Preparation**: Create a minimal Linux kernel + initrd/disk image.
-- [ ] **3.2 VZ Driver Implementation**:
-    - [ ] VM configuration (vCPU, Memory).
-    - [ ] Virtio-fs or Virtio-9p for workspace mounting.
-    - [ ] Virtio-serial or VSOCK for command transport.
-- [ ] **3.3 Networking**: Implement `offline` and `fetch` (NAT) modes using VZ.
+- [x] **3.1 Worker Image Preparation**: Build script (`scripts/build-images.sh`) downloads Alpine minirootfs, extracts `linux-virt` kernel, and packs `initrd.img`.
+- [x] **3.2 VZ Driver Implementation**:
+    - [x] VM configuration (vCPU, Memory) via `Code-Hex/vz`.
+    - [x] Virtio-fs workspace mounting via `CreateSandboxWithMounts`.
+    - [x] VSOCK command transport — host-side dial + JSON envelope protocol.
+- [ ] **3.3 Guest Agent**: Binary inside VM listening on VSOCK port 2222 to handle `exec`/`copyout` ops.
+- [ ] **3.4 Networking**: Implement `offline` and `fetch` (NAT) modes using VZ.
 
 ## Phase 4: Linux Execution Plane (linux-kvm)
 *Goal: Parity for Linux hosts.*
@@ -52,7 +53,7 @@ This roadmap tracks the progress of the Sandforge Agent Sandbox based on [ARCHIT
 ## Phase 6: Control Plane & Adapters
 *Goal: The external interface for Coding Agents.*
 
-- [ ] **6.1 Control Plane API**: REST/gRPC server to manage tasks and sessions.
+- [x] **6.1 Control Plane API**: HTTP REST server (`/v1/sandboxes`) with create, exec, destroy, status, and health endpoints; graceful shutdown on SIGINT/SIGTERM.
 - [ ] **6.2 Agent Adapters**:
     - [ ] Generic Tool-Calling Adapter.
     - [ ] (Optional) Specific adapters for Claude/Codex.

@@ -1,9 +1,13 @@
-.PHONY: build run test images clean
+.PHONY: build agent run test images clean
 
-BIN := bin/sandforge
+BIN       := bin/sandforge
+AGENT_BIN := bin/sandforge-agent
 
 build:
 	go build -o $(BIN) ./cmd/sandforge
+
+agent:
+	GOOS=linux GOARCH=amd64 go build -o $(AGENT_BIN) ./cmd/guest-agent
 
 run: build
 	./$(BIN)
