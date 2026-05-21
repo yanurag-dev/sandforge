@@ -31,6 +31,9 @@ const config: Config = {
     },
   },
   themes: ['@docusaurus/theme-mermaid'],
+  plugins: [
+    './src/plugins/tailwind-plugin.cjs', // Custom PostCSS bridge for Tailwind CSS
+  ],
 
   presets: [
     [
@@ -38,9 +41,9 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          routeBasePath: '/', // Serve docs directly at base URL (ideal for documentation-only sites)
+          routeBasePath: 'docs', // Serve documentation under /docs/
         },
-        blog: false, // Disables blog section for a clean docs-only portal
+        blog: false, // Disables default blog template
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -63,9 +66,19 @@ const config: Config = {
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'docsSidebar',
           position: 'left',
-          label: 'Documentation',
+          label: 'Docs',
+        },
+        {
+          to: '/docs/api-reference',
+          position: 'left',
+          label: 'API',
+        },
+        {
+          to: '/docs/cli',
+          position: 'left',
+          label: 'CLI',
         },
         {
           href: 'https://github.com/yanurag-dev/sandforge',
@@ -82,7 +95,15 @@ const config: Config = {
           items: [
             {
               label: 'Overview',
-              to: '/',
+              to: '/docs/intro',
+            },
+            {
+              label: 'Quickstart',
+              to: '/docs/quickstart',
+            },
+            {
+              label: 'Authentication',
+              to: '/docs/authentication',
             },
           ],
         },
@@ -91,11 +112,15 @@ const config: Config = {
           items: [
             {
               label: 'System Architecture',
-              to: '/architecture',
+              to: '/docs/architecture',
             },
             {
               label: 'Policy Engine Details',
-              to: '/policy-engine',
+              to: '/docs/policy-engine',
+            },
+            {
+              label: 'macOS Virtualization',
+              to: '/docs/macos-driver',
             },
           ],
         },
@@ -103,17 +128,21 @@ const config: Config = {
           title: 'Development',
           items: [
             {
-              label: 'macOS Virtualization',
-              to: '/macos-driver',
+              label: 'Build and Test Guide',
+              to: '/docs/development-guide',
             },
             {
-              label: 'Build and Test Guide',
-              to: '/development-guide',
+              label: 'SDK Bindings',
+              to: '/docs/sdks',
+            },
+            {
+              label: 'Deployment Guide',
+              to: '/docs/deployment',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Sandforge. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Sandforge. Built with Docusaurus 3 + Tailwind CSS.`,
     },
     prism: {
       theme: prismThemes.github,

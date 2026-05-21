@@ -28,3 +28,6 @@ go.sum
 
 # Guest VM images (built locally via scripts/build-images.sh)
 images/
+
+# Antigravity local state
+.antigravitycli/
