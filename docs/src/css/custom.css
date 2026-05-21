@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cyber Stealth Carbon & Zinc Grey Variables */
+:root {
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: 'Fira Code', 'JetBrains Mono', monospace;
+  --ifm-heading-font-family: 'Outfit', 'Inter', sans-serif;
+
+  /* Carbon Steel & Silver Accents */
+  --ifm-color-primary: #e4e4e7; /* Silver Zinc-200 */
+  --ifm-color-primary-dark: #a1a1aa; /* Muted Grey Zinc-400 */
+  --ifm-color-primary-darker: #71717a;
+  --ifm-color-primary-darkest: #52525b;
+  --ifm-color-primary-light: #f4f4f5; /* Zinc-100 */
+  --ifm-color-primary-lighter: #ffffff;
+  --ifm-color-primary-lightest: #ffffff;
+
+  --ifm-background-color: #09090b; /* Matte Carbon Black */
+  --ifm-card-background-color: #18181b; /* Zinc Charcoal-900 */
+  --ifm-navbar-background-color: rgba(9, 9, 11, 0.9);
+  --ifm-toc-border-color: #27272a; /* Industrial Grey */
+
+  --ifm-code-font-size: 87.5%;
+  --docusaurus-highlighted-code-line-bg: rgba(228, 228, 231, 0.08);
+  --ifm-pre-background: #111113;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #e4e4e7;
+  --ifm-color-primary-dark: #a1a1aa;
+  --ifm-color-primary-darker: #71717a;
+  --ifm-color-primary-darkest: #52525b;
+  --ifm-color-primary-light: #f4f4f5;
+  --ifm-color-primary-lighter: #ffffff;
+  --ifm-color-primary-lightest: #ffffff;
+
+  --ifm-background-color: #09090b;
+  --ifm-card-background-color: #18181b;
+  --ifm-navbar-background-color: rgba(9, 9, 11, 0.9);
+  --ifm-toc-border-color: #27272a;
+  
+  --ifm-pre-background: #111113;
+}
+
+/* Custom layout enhancements */
+.navbar {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(228, 228, 231, 0.12);
+  font-family: var(--ifm-font-family-monospace);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+}
+
+/* Monospace coding scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(228, 228, 231, 0.15);
+  border-radius: 3px;
+  border: 1px solid rgba(228, 228, 231, 0.08);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(228, 228, 231, 0.3);
+}
+
+/* Sidebar and menus */
+.menu__link {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  border-radius: 4px !important;
+  border-left: 2px solid transparent;
+}
+.menu__link--active {
+  background-color: rgba(228, 228, 231, 0.06) !important;
+  color: #ffffff !important;
+  border-left: 2px solid #e4e4e7 !important;
+}
+
+/* Cyber Sandbox Frame Styling */
+.sandbox-frame {
+  position: relative;
+  background: #121214;
+  border: 1px solid rgba(228, 228, 231, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.sandbox-frame::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(228, 228, 231, 0.3), transparent);
+}
+
+/* Terminal Scanline effect */
+.scanlines {
+  position: relative;
+  overflow: hidden;
+}
+.scanlines::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Dotted secure matrix pattern */
+.bg-sandbox-grid {
+  background-size: 30px 30px;
+  background-image: 
+    radial-gradient(circle, rgba(228, 228, 231, 0.05) 1px, transparent 1px);
+}
+
+/* Cyber corners details on boxes */
+.cyber-corners {
+  position: relative;
+}
+.cyber-corners::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #e4e4e7;
+  border-right: 2px solid #e4e4e7;
+  pointer-events: none;
+}
+.cyber-corners::before {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: -2px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid #e4e4e7;
+  border-left: 2px solid #e4e4e7;
+  pointer-events: none;
+}
+
+/* Code block terminal override */
+.theme-code-block {
+  border-radius: 6px !important;
+  border: 1px solid rgba(228, 228, 231, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Muted terminal warning labels */
+.admonition-icon svg {
+  fill: currentColor;
+}
+.theme-admonition {
+  border-left-width: 3px !important;
+  border-radius: 6px !important;
+  background-color: #121214 !important;
+  border-color: rgba(228, 228, 231, 0.2) !important;
+}
+
+/* Glowing terminal warning labels */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05);
+  }
+}
+.glow-spot {
+  animation: pulse-glow 6s ease-in-out infinite;
+}
