@@ -23,8 +23,6 @@ coverage.txt
 # OS
 .DS_Store
 
-# Go specific
-go.sum
 
 # Guest VM images (built locally via scripts/build-images.sh)
 images/

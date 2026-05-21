@@ -3,46 +3,20 @@
 package vz
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
+	"github.com/sandforge/sandforge/pkg/agentproto"
 	"github.com/sandforge/sandforge/pkg/api"
 )
 
 // guestAgentPort is the VSOCK port the in-guest agent listens on.
 const guestAgentPort uint32 = 2222
 
-// execRequest is the JSON payload sent to the guest agent for command execution.
-type execRequest struct {
-	Command    []string          `json:"command"`
-	CWD        string            `json:"cwd"`
-	Env        map[string]string `json:"env"`
-	TimeoutSec int               `json:"timeout_sec"`
-}
-
-// execResponse is the JSON payload returned by the guest agent.
-type execResponse struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-}
-
-// copyOutRequest asks the guest agent to send a file's contents.
-type copyOutRequest struct {
-	GuestPath string `json:"guest_path"`
-}
-
-// copyOutResponse carries the (base64-encoded) file bytes from the guest.
-type copyOutResponse struct {
-	Data  []byte `json:"data"`
-	Error string `json:"error,omitempty"`
-}
 
 // sandboxEntry bundles the VM with its socket device so we can dial VSOCK later.
 type sandboxEntry struct {
@@ -77,6 +51,14 @@ func (v *VZBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
 }
 
 func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.WorkspaceMount) (string, error) {
+	switch spec.NetworkMode {
+	case "", "offline":
+		spec.NetworkMode = "offline"
+	case "fetch":
+	default:
+		return "", fmt.Errorf("unsupported network mode: %q (must be offline or fetch)", spec.NetworkMode)
+	}
+
 	kernelPath := v.kernelPath
 	initrdPath := v.initrdPath
 
@@ -87,9 +69,10 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		return "", fmt.Errorf("initrd not found at %s: %w", initrdPath, err)
 	}
 
+	cmdLine := fmt.Sprintf("console=hvc0 root=/dev/ram0 sandforge.network=%s", spec.NetworkMode)
 	bootLoader, err := vz.NewLinuxBootLoader(
 		kernelPath,
-		vz.WithCommandLine("console=hvc0 root=/dev/ram0"),
+		vz.WithCommandLine(cmdLine),
 		vz.WithInitrd(initrdPath),
 	)
 	if err != nil {
@@ -156,6 +139,15 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		config.SetDirectorySharingDevicesVirtualMachineConfiguration(fsConfigs)
 	}
 
+	// Network: offline = no NIC; fetch = NAT NIC (nftables allowlist enforced in guest)
+	if spec.NetworkMode == "fetch" {
+		netCfg, err := buildNATNetworkConfig()
+		if err != nil {
+			return "", fmt.Errorf("failed to create network config: %w", err)
+		}
+		config.SetNetworkDevicesVirtualMachineConfiguration([]*vz.VirtioNetworkDeviceConfiguration{netCfg})
+	}
+
 	valid, err := config.Validate()
 	if !valid || err != nil {
 		return "", fmt.Errorf("invalid VM configuration: %w", err)
@@ -210,19 +202,19 @@ func (v *VZBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, er
 	}
 	defer conn.Close()
 
-	payload := execRequest{
+	payload := agentproto.ExecRequest{
 		Command:    req.Command,
 		CWD:        req.CWD,
 		Env:        req.Env,
 		TimeoutSec: req.TimeoutSec,
 	}
 
-	if err := writeJSON(conn, "exec", payload); err != nil {
+	if err := agentproto.WriteRequest(conn, "exec", payload); err != nil {
 		return api.ExecResult{}, fmt.Errorf("exec: write request: %w", err)
 	}
 
-	var resp execResponse
-	if err := readJSON(conn, &resp); err != nil {
+	var resp agentproto.ExecResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
 		return api.ExecResult{}, fmt.Errorf("exec: read response: %w", err)
 	}
 
@@ -242,13 +234,13 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 	}
 	defer conn.Close()
 
-	payload := copyOutRequest{GuestPath: guestPath}
-	if err := writeJSON(conn, "copyout", payload); err != nil {
+	payload := agentproto.CopyOutRequest{GuestPath: guestPath}
+	if err := agentproto.WriteRequest(conn, "copyout", payload); err != nil {
 		return fmt.Errorf("copyout: write request: %w", err)
 	}
 
-	var resp copyOutResponse
-	if err := readJSON(conn, &resp); err != nil {
+	var resp agentproto.CopyOutResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
 		return fmt.Errorf("copyout: read response: %w", err)
 	}
 	if resp.Error != "" {
@@ -299,23 +291,17 @@ func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 	return conn, nil
 }
 
-// agentEnvelope is the top-level wrapper sent to the guest agent.
-type agentEnvelope struct {
-	Op      string          `json:"op"`
-	Payload json.RawMessage `json:"payload"`
-}
 
-// writeJSON encodes op+payload as a newline-delimited JSON envelope.
-func writeJSON(w io.Writer, op string, payload any) error {
-	raw, err := json.Marshal(payload)
+// buildNATNetworkConfig creates a Virtio NIC backed by macOS NAT (shared networking).
+// Used for "fetch" network mode. "offline" mode attaches no NIC at all.
+func buildNATNetworkConfig() (*vz.VirtioNetworkDeviceConfiguration, error) {
+	nat, err := vz.NewNATNetworkDeviceAttachment()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("nat attachment: %w", err)
 	}
-	env := agentEnvelope{Op: op, Payload: json.RawMessage(raw)}
-	return json.NewEncoder(w).Encode(env)
-}
-
-// readJSON decodes a single newline-delimited JSON value from r into v.
-func readJSON(r io.Reader, v any) error {
-	return json.NewDecoder(r).Decode(v)
+	netCfg, err := vz.NewVirtioNetworkDeviceConfiguration(nat)
+	if err != nil {
+		return nil, fmt.Errorf("virtio network config: %w", err)
+	}
+	return netCfg, nil
 }
