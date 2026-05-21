@@ -5,7 +5,6 @@
 [![License](https://img.shields.io/github/license/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/pulls)
-[![Roadmap](https://img.shields.io/badge/Roadmap-Phase%202%20Complete-success)](ROADMAP.md)
 
 **Sandforge** is a portable, secure, and robust sandbox architecture designed to run AI coding agents (such as Codex, Claude Code, and others) in a highly restricted, isolated environment. 
 
@@ -69,25 +68,6 @@ For a comprehensive architectural specification, read [ARCHITECTURE.md](ARCHITEC
 ├── scripts/              # Guest OS builder utilities
 └── images/               # [Generated] Bootable kernels & initrd files
 ```
-
----
-
-## 🗺️ Roadmap Status
-
-We are actively progressing through **Phase 3**.
-
-*   [x] **Phase 1: Foundation & Policy** — API definitions and the "Deny-by-Default" Policy Engine.
-*   [x] **Phase 2: Orchestration & Mocking** — Thread-safe lifecycle state machine, RWMutex supervisors, and mock execution backends.
-*   [✓] **Phase 3: macOS Execution Plane (`macos-vz`)** — Custom Linux guest image builder scripts, and Virtualization Framework integration.
-    *   [x] Custom guest image packager (`scripts/build-images.sh`) fetching Alpine Linux + `linux-virt` kernels.
-    *   [x] macOS VZ backend configuration (vCPUs, RAM, console channels, directory mounts, and VSOCK transport setup).
-    *   [ ] Real-time command agent inside the guest VM (active frontier).
-*   [ ] **Phase 4: Linux Execution Plane (`linux-kvm`)** — Native Linux hypervisor parity.
-*   [ ] **Phase 5: Task Runtime** — Rootless container orchestration inside the worker.
-*   [ ] **Phase 6: Control Plane & Adapters** — Secure credential brokers and LLM provider interfaces.
-*   [ ] **Phase 7: CLI & Experience** — Real-time terminal output streaming and terminal adapters.
-
-See [ROADMAP.md](ROADMAP.md) for granular task tracking.
 
 ---
 
