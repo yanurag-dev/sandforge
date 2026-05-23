@@ -55,70 +55,24 @@ chmod +x "$AGENT_DIR/sandforge-agent"
 # ── 5. Create /init ────────────────────────────────────────────────────────
 cat > "$ROOTFS_DIR/init" <<'INIT'
 #!/bin/sh
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+echo "[init] boot start"
 mount -t proc none /proc
+echo "[init] proc mounted"
 mount -t sysfs none /sys
-mount -t devtmpfs none /dev 2>/dev/null || mdev -s
+echo "[init] sysfs mounted"
+mount -t devtmpfs none /dev 2>/dev/null && echo "[init] devtmpfs mounted" || echo "[init] devtmpfs failed (ok)"
 
-# Parse network mode from kernel cmdline (sandforge.network=offline|fetch)
-NETWORK_MODE="offline"
-for arg in $(cat /proc/cmdline); do
-    case "$arg" in
-        sandforge.network=*) NETWORK_MODE="${arg#sandforge.network=}" ;;
-    esac
-done
-
-if [ "$NETWORK_MODE" = "fetch" ]; then
-    # Bring up eth0 via DHCP (VZ NAT provides DHCP)
-    ip link set eth0 up
-    udhcpc -i eth0 -q 2>/dev/null || true
-
-    # Apply nftables allowlist: DNS + HTTPS to package registries only.
-    # Fail closed — abort boot if rules cannot be installed.
-    # NOTE: CIDRs cover shared CDN ranges; a host-side proxy is needed for
-    # true domain-level enforcement.
-    if ! nft -f - <<'NFT'; then
-        echo "ERROR: failed to apply fetch-mode firewall rules" >&2
-        exit 1
-    fi
-table inet sandforge {
-    chain output {
-        type filter hook output priority 0; policy drop;
-
-        # Allow loopback
-        oif lo accept
-
-        # Allow established/related (return traffic)
-        meta l4proto { tcp, udp } ct state established,related accept
-
-        # Allow DNS
-        udp dport 53 accept
-        tcp dport 53 accept
-
-        # Allow HTTPS to package registry CDN ranges
-        # (pypi, npmjs, alpinelinux, github — shared CDN; not domain-exact)
-        tcp dport 443 ip daddr {
-            151.101.0.0/17,
-            104.16.0.0/12,
-            199.232.0.0/16,
-            140.82.112.0/20,
-            185.199.108.0/22
-        } accept
-    }
-    chain input {
-        type filter hook input priority 0; policy accept;
-    }
-    chain forward {
-        type filter hook forward priority 0; policy drop;
-    }
-}
-NFT
-else
-    # offline: no network interface brought up — NAT device not attached anyway
-    ip link set eth0 down 2>/dev/null || true
+# Mount virtiofs share(s) — host VZ backend exposes them with tags mount0, mount1, ...
+# Convention: mount0 → /workspace (used by sandforge run transient mode).
+if [ -d /sys/fs/virtiofs ] || grep -q virtiofs /proc/filesystems 2>/dev/null; then
+    mkdir -p /workspace
+    mount -t virtiofs mount0 /workspace 2>/dev/null && echo "[init] mount0 -> /workspace" || echo "[init] mount0 not present (ok)"
 fi
 
-# Start guest agent (PID 2 — keeps VM alive)
+echo "[init] starting sandforge-agent"
 exec /usr/local/bin/sandforge-agent
+echo "[init] ERROR: exec failed" >&2
 INIT
 chmod +x "$ROOTFS_DIR/init"
 
@@ -127,36 +81,51 @@ echo "==> Building initrd.img..."
 (cd "$ROOTFS_DIR" && find . | cpio -H newc -o | gzip -9) > "$IMAGES_DIR/initrd.img"
 echo "    initrd.img: $(du -sh "$IMAGES_DIR/initrd.img" | cut -f1)"
 
-# ── 7. Fetch kernel from Alpine packages ──────────────────────────────────
-APKINDEX_URL="${ALPINE_MIRROR}/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/APKINDEX.tar.gz"
-echo "==> Fetching Alpine package index..."
-curl -fsSL "$APKINDEX_URL" -o "$WORK_DIR/APKINDEX.tar.gz"
-tar -xzf "$WORK_DIR/APKINDEX.tar.gz" -C "$WORK_DIR" APKINDEX 2>/dev/null || true
+# ── 7. Fetch kernel ────────────────────────────────────────────────────────
+# Apple VZ NewLinuxBootLoader requires a raw uncompressed kernel Image, not an
+# EFI stub. Alpine linux-virt for aarch64 ships only the EFI stub (vmlinuz-virt),
+# so on arm64 we use puipui-linux which ships a raw Image.gz built for VZ.
+# On x86_64 Alpine's vmlinuz-virt is a bzImage which VZ accepts directly.
 
-KERNEL_VER=$(awk '/^P:linux-virt$/{found=1} found && /^V:/{print $0; exit}' \
-    "$WORK_DIR/APKINDEX" | sed 's/^V://')
+if [ "$HOST_ARCH" = "arm64" ]; then
+    PUIPUI_VERSION="1.0.3"
+    PUIPUI_URL="https://github.com/Code-Hex/puipui-linux/releases/download/v${PUIPUI_VERSION}/puipui_linux_v${PUIPUI_VERSION}_aarch64.tar.gz"
+    echo "==> Fetching puipui-linux v${PUIPUI_VERSION} kernel (arm64 VZ-compatible)..."
+    curl -fsSL "$PUIPUI_URL" -o "$WORK_DIR/puipui.tar.gz"
+    tar -xzf "$WORK_DIR/puipui.tar.gz" -C "$WORK_DIR" ./Image.gz
+    gunzip -f "$WORK_DIR/Image.gz"
+    cp "$WORK_DIR/Image" "$IMAGES_DIR/vmlinuz"
+else
+    APKINDEX_URL="${ALPINE_MIRROR}/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/APKINDEX.tar.gz"
+    echo "==> Fetching Alpine package index..."
+    curl -fsSL "$APKINDEX_URL" -o "$WORK_DIR/APKINDEX.tar.gz"
+    tar -xzf "$WORK_DIR/APKINDEX.tar.gz" -C "$WORK_DIR" APKINDEX 2>/dev/null || true
 
-if [ -z "$KERNEL_VER" ]; then
-    echo "ERROR: Could not find linux-virt version in APKINDEX" >&2
-    exit 1
+    KERNEL_VER=$(awk '/^P:linux-virt$/{found=1} found && /^V:/{print $0; exit}' \
+        "$WORK_DIR/APKINDEX" | sed 's/^V://')
+
+    if [ -z "$KERNEL_VER" ]; then
+        echo "ERROR: Could not find linux-virt version in APKINDEX" >&2
+        exit 1
+    fi
+    echo "==> Kernel package: linux-virt-${KERNEL_VER}"
+
+    KERNEL_APK_URL="${ALPINE_MIRROR}/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/linux-virt-${KERNEL_VER}.apk"
+    echo "==> Downloading linux-virt apk..."
+    curl -fsSL "$KERNEL_APK_URL" -o "$WORK_DIR/linux-virt.apk"
+
+    echo "==> Extracting vmlinuz from apk..."
+    mkdir -p "$WORK_DIR/apk_extract"
+    (cd "$WORK_DIR/apk_extract" && tar -xzf "$WORK_DIR/linux-virt.apk" 2>/dev/null || true)
+
+    VMLINUZ=$(find "$WORK_DIR/apk_extract" -name "vmlinuz-virt" | head -1)
+    if [ -z "$VMLINUZ" ]; then
+        echo "ERROR: vmlinuz-virt not found in apk" >&2
+        exit 1
+    fi
+    cp "$VMLINUZ" "$IMAGES_DIR/vmlinuz"
 fi
-echo "==> Kernel package: linux-virt-${KERNEL_VER}"
 
-KERNEL_APK_URL="${ALPINE_MIRROR}/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/linux-virt-${KERNEL_VER}.apk"
-echo "==> Downloading linux-virt apk..."
-curl -fsSL "$KERNEL_APK_URL" -o "$WORK_DIR/linux-virt.apk"
-
-echo "==> Extracting vmlinuz from apk..."
-mkdir -p "$WORK_DIR/apk_extract"
-(cd "$WORK_DIR/apk_extract" && tar -xzf "$WORK_DIR/linux-virt.apk" 2>/dev/null || true)
-
-VMLINUZ=$(find "$WORK_DIR/apk_extract" -name "vmlinuz-virt" | head -1)
-if [ -z "$VMLINUZ" ]; then
-    echo "ERROR: vmlinuz-virt not found in apk" >&2
-    exit 1
-fi
-
-cp "$VMLINUZ" "$IMAGES_DIR/vmlinuz"
 echo "    vmlinuz:    $(du -sh "$IMAGES_DIR/vmlinuz" | cut -f1)"
 
 echo ""

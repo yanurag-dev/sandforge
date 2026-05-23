@@ -8,7 +8,7 @@ build:
 	go build -o $(BIN) ./cmd/sandforge
 	@if [ "$$(uname)" = "Darwin" ]; then \
 		echo "Signing binary with virtualization entitlements..."; \
-		codesign -s - --entitlements entitlements.plist $(BIN); \
+		codesign -f -s - --entitlements entitlements.plist $(BIN); \
 	fi
 
 agent:

@@ -79,8 +79,15 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		return "", fmt.Errorf("failed to create bootloader: %w", err)
 	}
 
-	attachment, err := vz.NewFileHandleSerialPortAttachment(os.Stdin, os.Stdout)
+	// Use a pipe so VZ doesn't require the process to own a terminal.
+	pr, pw, err := os.Pipe()
 	if err != nil {
+		return "", fmt.Errorf("failed to create console pipe: %w", err)
+	}
+	attachment, err := vz.NewFileHandleSerialPortAttachment(pr, pw)
+	if err != nil {
+		pr.Close()
+		pw.Close()
 		return "", fmt.Errorf("failed to create serial attachment: %w", err)
 	}
 	serial, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(attachment)
@@ -272,8 +279,8 @@ func (v *VZBackend) DestroySandbox(handle string) error {
 	return nil
 }
 
-// dialGuest opens a VSOCK connection to the guest agent running on the VM
-// identified by handle.
+// dialGuest opens a VSOCK connection to the guest agent. Retries for up to
+// 30s to allow the guest kernel and init to boot before the agent is ready.
 func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 	v.mu.RLock()
 	entry, exists := v.sandboxes[handle]
@@ -283,12 +290,18 @@ func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 		return nil, fmt.Errorf("sandbox handle not found: %s", handle)
 	}
 
-	conn, err := entry.socket.Connect(guestAgentPort)
-	if err != nil {
-		return nil, fmt.Errorf("vsock connect to port %d: %w", guestAgentPort, err)
+	deadline := time.Now().Add(30 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		conn, err := entry.socket.Connect(guestAgentPort)
+		if err == nil {
+			conn.SetDeadline(time.Now().Add(30 * time.Second))
+			return conn, nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
 	}
-	conn.SetDeadline(time.Now().Add(30 * time.Second))
-	return conn, nil
+	return nil, fmt.Errorf("vsock connect to port %d: %w", guestAgentPort, lastErr)
 }
 
 
