@@ -104,7 +104,7 @@ func newRunCmd() *cobra.Command {
 				MaxDiskGb:           100,
 				AllowedNetworkModes: []string{"offline", "fetch"},
 				AllowedHostPrefixes: []string{absDir}, // Explicitly allow the chosen mount dir
-				AllowedCommands:     []string{binary},  // Explicitly allow the chosen executable
+				AllowedCommands:     []string{binary}, // Explicitly allow the chosen executable
 			}
 
 			// Determine backend

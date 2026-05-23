@@ -95,7 +95,7 @@ func TestSupervisorLifecycle(t *testing.T) {
 				if err := sup.Start(cid, spec); err != nil {
 					t.Errorf("Failed to start concurrent sandbox %d: %v", idx, err)
 				}
-				
+
 				// Run a command
 				req := api.ExecRequest{Command: []string{"echo", "hello"}}
 				if _, err := sup.RunCommand(cid, req); err != nil {
@@ -130,10 +130,10 @@ func TestSupervisorLifecycle(t *testing.T) {
 
 func TestSupervisorMountAndCopy(t *testing.T) {
 	mockBackend := backend.NewMockBackend()
-	
+
 	// Create a temp dir for allowed mounts
 	tmpDir := t.TempDir()
-	
+
 	engine := &policy.Engine{
 		AllowedHostPrefixes: []string{tmpDir},
 		MaxCPU:              4,
@@ -148,11 +148,11 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 
 	id := "test-mount"
 	spec := api.SandboxSpec{CPU: 1, MemoryMb: 512, DiskGb: 1, NetworkMode: "offline"}
-	
+
 	if err := sup.Start(id, spec); err != nil {
 		t.Fatalf("Failed to start sandbox: %v", err)
 	}
-	defer sup.Stop(id)
+	defer func() { _ = sup.Stop(id) }()
 
 	t.Run("ValidMount", func(t *testing.T) {
 		err := sup.MountWorkspace(id, api.WorkspaceMount{
@@ -179,7 +179,7 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		sup.mu.Lock()
 		instance := sup.instances[id]
 		sup.mu.Unlock()
-		
+
 		originalState := instance.GetState()
 		instance.SetState(StateExecuting)
 		defer instance.SetState(originalState)
@@ -223,5 +223,3 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		}
 	})
 }
-
-

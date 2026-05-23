@@ -47,8 +47,8 @@ func TestWriteReadJSON(t *testing.T) {
 	}
 
 	server, client := net.Pipe()
-	defer server.Close()
-	defer client.Close()
+	defer func() { _ = server.Close() }()
+	defer func() { _ = client.Close() }()
 
 	errCh := make(chan error, 1)
 	go func() {
