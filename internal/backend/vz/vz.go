@@ -17,11 +17,12 @@ import (
 // guestAgentPort is the VSOCK port the in-guest agent listens on.
 const guestAgentPort uint32 = 2222
 
-
 // sandboxEntry bundles the VM with its socket device so we can dial VSOCK later.
 type sandboxEntry struct {
-	vm     *vz.VirtualMachine
-	socket *vz.VirtioSocketDevice
+	vm       *vz.VirtualMachine
+	socket   *vz.VirtioSocketDevice
+	consoleR *os.File
+	consoleW *os.File
 }
 
 // VZBackend implements api.SandboxBackend using Apple Virtualization Framework.
@@ -47,7 +48,7 @@ func NewVZBackendWithImages(kernelPath, initrdPath string) *VZBackend {
 }
 
 func (v *VZBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
-	return v.CreateSandboxWithMounts(spec, nil)
+	return v.CreateSandboxWithMounts(spec, spec.Mounts)
 }
 
 func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.WorkspaceMount) (string, error) {
@@ -79,7 +80,20 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		return "", fmt.Errorf("failed to create bootloader: %w", err)
 	}
 
-	attachment, err := vz.NewFileHandleSerialPortAttachment(os.Stdin, os.Stdout)
+	// Use a pipe so VZ doesn't require the process to own a terminal.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create console pipe: %w", err)
+	}
+	cleanupConsole := true
+	defer func() {
+		if cleanupConsole {
+			_ = pr.Close()
+			_ = pw.Close()
+		}
+	}()
+
+	attachment, err := vz.NewFileHandleSerialPortAttachment(pr, pw)
 	if err != nil {
 		return "", fmt.Errorf("failed to create serial attachment: %w", err)
 	}
@@ -122,10 +136,17 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		fsConfigs = append(fsConfigs, fsCfg)
 	}
 
+	if spec.CPU <= 0 {
+		return "", fmt.Errorf("invalid CPU count: must be greater than 0")
+	}
+	if spec.MemoryMb <= 0 {
+		return "", fmt.Errorf("invalid memory size: must be greater than 0")
+	}
+
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootLoader,
 		uint(spec.CPU),
-		uint64(spec.MemoryMb),
+		uint64(spec.MemoryMb)*1024*1024,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create VM config: %w", err)
@@ -171,8 +192,14 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 
 	handle := fmt.Sprintf("vz-%p", vm)
 	v.mu.Lock()
-	v.sandboxes[handle] = &sandboxEntry{vm: vm, socket: socketDevices[0]}
+	v.sandboxes[handle] = &sandboxEntry{
+		vm:       vm,
+		socket:   socketDevices[0],
+		consoleR: pr,
+		consoleW: pw,
+	}
 	v.mu.Unlock()
+	cleanupConsole = false
 
 	return handle, nil
 }
@@ -200,7 +227,7 @@ func (v *VZBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, er
 	if err != nil {
 		return api.ExecResult{}, fmt.Errorf("exec: dial guest: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload := agentproto.ExecRequest{
 		Command:    req.Command,
@@ -232,7 +259,7 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 	if err != nil {
 		return fmt.Errorf("copyout: dial guest: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload := agentproto.CopyOutRequest{GuestPath: guestPath}
 	if err := agentproto.WriteRequest(conn, "copyout", payload); err != nil {
@@ -247,7 +274,7 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 		return fmt.Errorf("copyout: guest error: %s", resp.Error)
 	}
 
-	if err := os.WriteFile(dest, resp.Data, 0o644); err != nil {
+	if err := os.WriteFile(dest, resp.Data, 0o600); err != nil {
 		return fmt.Errorf("copyout: write dest %s: %w", dest, err)
 	}
 	return nil
@@ -262,6 +289,13 @@ func (v *VZBackend) DestroySandbox(handle string) error {
 		return fmt.Errorf("sandbox handle not found: %s", handle)
 	}
 
+	if entry.consoleR != nil {
+		_ = entry.consoleR.Close()
+	}
+	if entry.consoleW != nil {
+		_ = entry.consoleW.Close()
+	}
+
 	if entry.vm.CanStop() {
 		if _, err := entry.vm.RequestStop(); err != nil {
 			fmt.Printf("Warning: failed graceful stop for %s: %v\n", handle, err)
@@ -272,8 +306,8 @@ func (v *VZBackend) DestroySandbox(handle string) error {
 	return nil
 }
 
-// dialGuest opens a VSOCK connection to the guest agent running on the VM
-// identified by handle.
+// dialGuest opens a VSOCK connection to the guest agent. Retries for up to
+// 30s to allow the guest kernel and init to boot before the agent is ready.
 func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 	v.mu.RLock()
 	entry, exists := v.sandboxes[handle]
@@ -283,14 +317,24 @@ func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 		return nil, fmt.Errorf("sandbox handle not found: %s", handle)
 	}
 
-	conn, err := entry.socket.Connect(guestAgentPort)
-	if err != nil {
-		return nil, fmt.Errorf("vsock connect to port %d: %w", guestAgentPort, err)
+	deadline := time.Now().Add(30 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		conn, err := entry.socket.Connect(guestAgentPort)
+		if err == nil {
+			if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+				_ = conn.Close()
+				lastErr = fmt.Errorf("failed to set deadline: %w", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			return conn, nil
+		}
+		lastErr = err
+		time.Sleep(500 * time.Millisecond)
 	}
-	conn.SetDeadline(time.Now().Add(30 * time.Second))
-	return conn, nil
+	return nil, fmt.Errorf("vsock connect to port %d: %w", guestAgentPort, lastErr)
 }
-
 
 // buildNATNetworkConfig creates a Virtio NIC backed by macOS NAT (shared networking).
 // Used for "fetch" network mode. "offline" mode attaches no NIC at all.

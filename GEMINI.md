@@ -23,7 +23,10 @@ Following the "Control Plane Outside, Execution Inside" principle:
 - **Initialize/Sync Dependencies:** `go mod tidy`
 - **Build the CLI:** `go build -o sandforge ./cmd/sandforge`
 - **Run Tests:** `go test ./...`
-- **Linting:** (TODO: Add linting configuration, e.g., golangci-lint)
+- **Linting:** `make lint`
+- **Type Checking:** `make typecheck`
+- **Formatting:** `make fmt`
+- **Complete Verification Suite:** `make check`
 
 ### Running the Sandbox
 (TODO: Add instructions once the first backend driver is functional)
@@ -87,6 +90,8 @@ Design question → walk through tradeoffs, draw from the actual code.
 | Policy engine runs before backend | `internal/policy/engine.go` | Fail fast. Don't spin up a VM just to reject it on policy grounds. |
 | Mock backend | `internal/backend/mock.go` | Test supervisor/policy logic without needing a real hypervisor. |
 | `Code-Hex/vz` dependency | `go.mod` | Go bindings for Apple's `Virtualization.framework`. macOS 12+ only, requires CGo. |
+| Cobra CLI Framework | `cmd/sandforge/main.go` | Standardizes subcommand hierarchy, POSIX double-dash flags, auto-generated completions, and guarantees all deferred cleanup handlers are executed before process exit. |
+| Positive Resource Bounds | `internal/backend/vz/vz.go` | Explicitly validates `CPU <= 0` and `MemoryMb <= 0` to prevent integer wrap-around crash vulnerabilities when casting to unsigned VM configurations. |
 
 ---
 
