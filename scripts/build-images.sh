@@ -89,9 +89,11 @@ echo "    initrd.img: $(du -sh "$IMAGES_DIR/initrd.img" | cut -f1)"
 
 if [ "$HOST_ARCH" = "arm64" ]; then
     PUIPUI_VERSION="1.0.3"
+    PUIPUI_SHA256="dac4ce092db64d4901edf83c4d5061e74c9789f55655da7c737b5d0fc78cf54a"
     PUIPUI_URL="https://github.com/Code-Hex/puipui-linux/releases/download/v${PUIPUI_VERSION}/puipui_linux_v${PUIPUI_VERSION}_aarch64.tar.gz"
     echo "==> Fetching puipui-linux v${PUIPUI_VERSION} kernel (arm64 VZ-compatible)..."
     curl -fsSL "$PUIPUI_URL" -o "$WORK_DIR/puipui.tar.gz"
+    echo "${PUIPUI_SHA256}  $WORK_DIR/puipui.tar.gz" | shasum -a 256 -c -
     tar -xzf "$WORK_DIR/puipui.tar.gz" -C "$WORK_DIR" ./Image.gz
     gunzip -f "$WORK_DIR/Image.gz"
     cp "$WORK_DIR/Image" "$IMAGES_DIR/vmlinuz"

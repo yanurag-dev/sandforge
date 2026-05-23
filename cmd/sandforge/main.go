@@ -46,9 +46,12 @@ func main() {
 }
 
 func runServer(args []string) {
-	fs := flag.NewFlagSet("server", flag.ExitOnError)
+	fs := flag.NewFlagSet("server", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	addr := fs.String("addr", ":8080", "TCP address for the API server to listen on")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
 
 	fmt.Printf("Starting Sandforge API control plane on %s...\n", *addr)
 
@@ -79,14 +82,17 @@ func runServer(args []string) {
 }
 
 func runTransient(args []string) int {
-	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	dir := fs.String("dir", ".", "Host workspace directory to mount (defaults to current dir)")
 	network := fs.String("network", "offline", "Network mode: offline or fetch")
 	cpu := fs.Int("cpu", 2, "Number of virtual CPU cores")
 	mem := fs.Int("mem", 2048, "Memory size in MB")
 	mock := fs.Bool("mock", false, "Use in-memory Mock backend instead of real hypervisor")
 	timeout := fs.Int("timeout", 300, "Maximum execution timeout in seconds")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
 
 	cmdArgs := fs.Args()
 	if len(cmdArgs) == 0 {

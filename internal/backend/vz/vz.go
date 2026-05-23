@@ -17,11 +17,12 @@ import (
 // guestAgentPort is the VSOCK port the in-guest agent listens on.
 const guestAgentPort uint32 = 2222
 
-
 // sandboxEntry bundles the VM with its socket device so we can dial VSOCK later.
 type sandboxEntry struct {
-	vm     *vz.VirtualMachine
-	socket *vz.VirtioSocketDevice
+	vm       *vz.VirtualMachine
+	socket   *vz.VirtioSocketDevice
+	consoleR *os.File
+	consoleW *os.File
 }
 
 // VZBackend implements api.SandboxBackend using Apple Virtualization Framework.
@@ -84,10 +85,16 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 	if err != nil {
 		return "", fmt.Errorf("failed to create console pipe: %w", err)
 	}
+	cleanupConsole := true
+	defer func() {
+		if cleanupConsole {
+			_ = pr.Close()
+			_ = pw.Close()
+		}
+	}()
+
 	attachment, err := vz.NewFileHandleSerialPortAttachment(pr, pw)
 	if err != nil {
-		pr.Close()
-		pw.Close()
 		return "", fmt.Errorf("failed to create serial attachment: %w", err)
 	}
 	serial, err := vz.NewVirtioConsoleDeviceSerialPortConfiguration(attachment)
@@ -127,6 +134,13 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 		}
 		fsCfg.SetDirectoryShare(share)
 		fsConfigs = append(fsConfigs, fsCfg)
+	}
+
+	if spec.CPU <= 0 {
+		return "", fmt.Errorf("invalid CPU count: must be greater than 0")
+	}
+	if spec.MemoryMb <= 0 {
+		return "", fmt.Errorf("invalid memory size: must be greater than 0")
 	}
 
 	config, err := vz.NewVirtualMachineConfiguration(
@@ -178,8 +192,14 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 
 	handle := fmt.Sprintf("vz-%p", vm)
 	v.mu.Lock()
-	v.sandboxes[handle] = &sandboxEntry{vm: vm, socket: socketDevices[0]}
+	v.sandboxes[handle] = &sandboxEntry{
+		vm:       vm,
+		socket:   socketDevices[0],
+		consoleR: pr,
+		consoleW: pw,
+	}
 	v.mu.Unlock()
+	cleanupConsole = false
 
 	return handle, nil
 }
@@ -269,6 +289,13 @@ func (v *VZBackend) DestroySandbox(handle string) error {
 		return fmt.Errorf("sandbox handle not found: %s", handle)
 	}
 
+	if entry.consoleR != nil {
+		_ = entry.consoleR.Close()
+	}
+	if entry.consoleW != nil {
+		_ = entry.consoleW.Close()
+	}
+
 	if entry.vm.CanStop() {
 		if _, err := entry.vm.RequestStop(); err != nil {
 			fmt.Printf("Warning: failed graceful stop for %s: %v\n", handle, err)
@@ -295,7 +322,12 @@ func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 	for time.Now().Before(deadline) {
 		conn, err := entry.socket.Connect(guestAgentPort)
 		if err == nil {
-			conn.SetDeadline(time.Now().Add(30 * time.Second))
+			if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+				_ = conn.Close()
+				lastErr = fmt.Errorf("failed to set deadline: %w", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
 			return conn, nil
 		}
 		lastErr = err
@@ -303,7 +335,6 @@ func (v *VZBackend) dialGuest(handle string) (net.Conn, error) {
 	}
 	return nil, fmt.Errorf("vsock connect to port %d: %w", guestAgentPort, lastErr)
 }
-
 
 // buildNATNetworkConfig creates a Virtio NIC backed by macOS NAT (shared networking).
 // Used for "fetch" network mode. "offline" mode attaches no NIC at all.
