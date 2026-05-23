@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("vsock listen port %d: %v", listenPort, err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	log.Printf("sandforge-agent listening on vsock port %d", listenPort)
 
 	for {
@@ -49,7 +49,7 @@ func main() {
 }
 
 func handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Short deadline for reading the envelope only.
 	if err := conn.SetReadDeadline(time.Now().Add(envelopeRead)); err != nil {
@@ -98,6 +98,7 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	// #nosec G204 - The guest agent's core function is to run arbitrary user commands inside the sandbox VM.
 	cmd := exec.CommandContext(ctx, req.Command[0], req.Command[1:]...)
 
 	if req.CWD != "" {
