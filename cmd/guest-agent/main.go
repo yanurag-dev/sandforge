@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	listenPort    uint32        = 2222
-	envelopeRead  time.Duration = 10 * time.Second
-	defaultExec   time.Duration = 30 * time.Second
+	listenPort   uint32        = 2222
+	envelopeRead time.Duration = 10 * time.Second
+	defaultExec  time.Duration = 30 * time.Second
 )
 
 func main() {
