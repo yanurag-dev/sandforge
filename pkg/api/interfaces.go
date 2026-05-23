@@ -3,13 +3,14 @@ package api
 // From ARCHITECTURE.md Section 15
 
 type SandboxSpec struct {
-	Backend       string `json:"backend"` // "linux-kvm", "linux-firecracker", "macos-vz"
-	CPU           int    `json:"cpu"`
-	MemoryMb      int    `json:"memory_mb"`
-	DiskGb        int    `json:"disk_gb"`
-	TimeoutSec    int    `json:"timeout_sec"`
-	NetworkMode   string `json:"network_mode"`   // "offline", "fetch", "full"
-	TaskIsolation string `json:"task_isolation"` // "container", "process"
+	Backend       string           `json:"backend"` // "linux-kvm", "linux-firecracker", "macos-vz"
+	CPU           int              `json:"cpu"`
+	MemoryMb      int              `json:"memory_mb"`
+	DiskGb        int              `json:"disk_gb"`
+	TimeoutSec    int              `json:"timeout_sec"`
+	NetworkMode   string           `json:"network_mode"`   // "offline", "fetch", "full"
+	TaskIsolation string           `json:"task_isolation"` // "container", "process"
+	Mounts        []WorkspaceMount `json:"mounts,omitempty"`
 }
 
 type WorkspaceMount struct {

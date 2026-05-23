@@ -3,8 +3,19 @@
 # Requires: curl, cpio, gzip, find, go — all present on macOS with Xcode CLT.
 set -euo pipefail
 
+HOST_ARCH="$(uname -m)"
+if [ "$HOST_ARCH" = "arm64" ]; then
+    ALPINE_ARCH="aarch64"
+    GO_ARCH="arm64"
+elif [ "$HOST_ARCH" = "x86_64" ]; then
+    ALPINE_ARCH="x86_64"
+    GO_ARCH="amd64"
+else
+    echo "ERROR: Unsupported host architecture: $HOST_ARCH" >&2
+    exit 1
+fi
+
 ALPINE_VERSION="3.21"
-ALPINE_ARCH="x86_64"
 ALPINE_MIRROR="https://dl-cdn.alpinelinux.org/alpine"
 ROOTFS_URL="${ALPINE_MIRROR}/v${ALPINE_VERSION}/releases/${ALPINE_ARCH}/alpine-minirootfs-${ALPINE_VERSION}.0-${ALPINE_ARCH}.tar.gz"
 
@@ -18,8 +29,8 @@ echo "==> Output:   $IMAGES_DIR"
 mkdir -p "$IMAGES_DIR"
 
 # ── 1. Cross-compile guest agent ───────────────────────────────────────────
-echo "==> Building sandforge-agent (linux/amd64)..."
-GOOS=linux GOARCH=amd64 go build \
+echo "==> Building sandforge-agent (linux/${GO_ARCH})..."
+GOOS=linux GOARCH="$GO_ARCH" go build \
     -o "$WORK_DIR/sandforge-agent" \
     "$REPO_DIR/cmd/guest-agent"
 echo "    agent: $(du -sh "$WORK_DIR/sandforge-agent" | cut -f1)"

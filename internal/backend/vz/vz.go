@@ -47,7 +47,7 @@ func NewVZBackendWithImages(kernelPath, initrdPath string) *VZBackend {
 }
 
 func (v *VZBackend) CreateSandbox(spec api.SandboxSpec) (string, error) {
-	return v.CreateSandboxWithMounts(spec, nil)
+	return v.CreateSandboxWithMounts(spec, spec.Mounts)
 }
 
 func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.WorkspaceMount) (string, error) {
@@ -125,7 +125,7 @@ func (v *VZBackend) CreateSandboxWithMounts(spec api.SandboxSpec, mounts []api.W
 	config, err := vz.NewVirtualMachineConfiguration(
 		bootLoader,
 		uint(spec.CPU),
-		uint64(spec.MemoryMb),
+		uint64(spec.MemoryMb)*1024*1024,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create VM config: %w", err)

@@ -6,6 +6,10 @@ AGENT_BIN := bin/sandforge-agent
 build:
 	mkdir -p $(dir $(BIN))
 	go build -o $(BIN) ./cmd/sandforge
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		echo "Signing binary with virtualization entitlements..."; \
+		codesign -s - --entitlements entitlements.plist $(BIN); \
+	fi
 
 agent:
 	mkdir -p $(dir $(AGENT_BIN))
