@@ -6,58 +6,62 @@ description: Complete CLI reference for the sandforge command-line interface too
 
 # CLI Reference 💻
 
-The `sandforge` command-line utility provides terminal commands to start hypervisor daemons, execute sandboxed tasks, and manage host security policies.
+The `sandforge` command-line utility provides terminal commands to start secure hypervisor control servers and run transient sandboxed tasks.
 
 ---
 
 ## 🛠️ CLI Global Options
 
 ```text
-Usage: sandforge [command] [flags]
+Usage:
+  sandforge [command]
 
-Commands:
-  server       Run the API control plane server
-  run          Run a transient command in an isolated sandbox
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  run         Run a transient command in an isolated sandbox
+  server      Run the API control plane server
 
-Global Options:
-  -h, --help   Display system help instructions
+Flags:
+  -h, --help   help for sandforge
 ```
 
 ---
 
 ## 🚀 1. `sandforge run`
 
-Launches a virtual guest VM, executes the specified command, streams stdout/stderr outputs, and terminates the guest.
+Launches an isolated virtual guest VM, executes the specified command, streams stdout/stderr outputs, and terminates the guest environment upon exit.
 
 ```bash
-sandforge run [options] "command"
+sandforge run [flags] <cmd> [args...]
 ```
 
 ### Flags
-| Flag | Description | Default |
-| :--- | :--- | :--- |
-| `--cpu <n>` | Number of virtual CPU cores | `2` |
-| `--mem <mb>` | Memory size in MB | `2048` |
-| `--network <mode>` | Network mode: `offline` or `fetch` | `offline` |
-| `--dir <path>` | Host workspace directory to mount | `.` |
-| `--timeout <secs>` | Maximum execution timeout in seconds | `300` |
-| `--mock` | Use in-memory Mock backend instead of real hypervisor | `false` |
+| Long Flag | Short Flag | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--cpu <n>` | `-c` | Number of virtual CPU cores | `2` |
+| `--mem <mb>` | `-m` | Memory size in Megabytes | `2048` |
+| `--dir <path>` | `-d` | Host workspace directory to mount into guest | `.` |
+| `--network <mode>`| `-n` | Network mode: `offline` or `fetch` | `offline` |
+| `--timeout <secs>`| `-t` | Maximum execution timeout in seconds | `300` |
+| `--mock` | *(None)* | Use in-memory Mock backend instead of real hypervisor | `false` |
+| `--help` | `-h` | Display detailed subcommand help | |
 
 ### Examples
 
-#### Run offline Python script inside local directory
+#### Run offline Python script inside local directory (using short flags)
 ```bash
-./sandforge run --cpu 2 --mem 2048 --dir . python3 main.py
+./sandforge run -c 2 -m 2048 -d . python3 main.py
 ```
 
-#### Run with network access for package fetching
+#### Run with network access and custom timeout (using POSIX flags)
 ```bash
 ./sandforge run --network fetch --timeout 600 go build ./...
 ```
 
-#### Test with mock backend (no real VM)
+#### Test using the in-memory Mock backend
 ```bash
-./sandforge run --mock bash -c "echo Hello from sandbox"
+./sandforge run --mock -- echo "Hello from sandbox"
 ```
 
 ---
@@ -71,10 +75,12 @@ sandforge server [flags]
 ```
 
 ### Flags
-* `--addr <address>`: TCP address for the API server to listen on (`default: :8080`).
+| Long Flag | Short Flag | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--addr <address>`| `-a` | TCP address for the API server to listen on | `:8080` |
+| `--help` | `-h` | Display detailed subcommand help | |
 
 ### Example
 ```bash
-./sandforge server --addr :8080
+./sandforge server -a :8080
 ```
-

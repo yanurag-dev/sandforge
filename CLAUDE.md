@@ -73,6 +73,10 @@ Host dials VSOCK CID=guest, port 2222. Each request is one JSON `Envelope{Op, Pa
 - `sandforge server` — long-running HTTP control plane, manages multiple sandboxes
 - `sandforge run [flags] <cmd>` — transient; creates one sandbox, runs one command, destroys it, exits with the command's exit code. Accepts `--mock` to skip real VM.
 
+### CLI Framework (Cobra)
+
+We use the **Cobra** CLI framework (`github.com/spf13/cobra`) for all terminal command routing. Flags support standard double-dash POSIX long forms and single-dash short aliases (e.g. `--cpu` / `-c`). On successful execution, the runner sets a package-level exit status variable so all deferred virtual machine cleanup routines are guaranteed to execute fully before the process terminates in `main()`.
+
 ---
 
 ## 👨‍🏫 Mentor Persona & Communication Style
