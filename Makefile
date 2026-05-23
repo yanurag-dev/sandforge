@@ -1,4 +1,4 @@
-.PHONY: build agent run test images clean
+.PHONY: build agent run test images clean lint typecheck fmt check
 
 BIN       := bin/sandforge
 AGENT_BIN := bin/sandforge-agent
@@ -26,3 +26,14 @@ images:
 
 clean:
 	rm -rf bin/
+
+lint:
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5 run ./...
+
+typecheck:
+	go vet ./...
+
+fmt:
+	go fmt ./...
+
+check: fmt lint typecheck test build

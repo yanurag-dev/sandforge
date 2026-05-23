@@ -1,0 +1,39 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # Checks that returned errors are handled
+    - gosimple      # Suggests code simplifications
+    - govet         # Standard compiler static analysis
+    - ineffassign   # Detects ineffectual variable assignments
+    - staticcheck   # Advanced static analyzer (comprehensive bug checks)
+    - unused        # Finds unused constants, variables, functions, and types
+    - revive        # Modern style linter (replaces deprecated golint)
+    - gosec         # Security auditor for Go source code
+    - gofmt         # Confirms standard Go formatting compliance
+    - goimports     # Verifies imports are formatted and sorted correctly
+    - misspell      # Detects commonly misspelled English words in comments
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment # Field alignment warnings are minor and often irrelevant for simple config structs
+      - shadow         # Disable strict variable shadowing warnings to avoid verbose error renamings
+  revive:
+    rules:
+      - name: exported
+        disabled: true # Disable exported documentation checks for fast development pace
+  gosec:
+    excludes:
+      - G104 # Already caught by errcheck
+      - G304 # Already handled securely by our policy engine symlink checks
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

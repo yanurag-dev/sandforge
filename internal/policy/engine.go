@@ -80,7 +80,6 @@ func (e *Engine) EvaluateHostPath(path string) error {
 	return nil
 }
 
-
 func (e *Engine) EvaluateSandbox(spec api.SandboxSpec) error {
 	if spec.CPU > e.MaxCPU {
 		return ErrResourceLimitExceeded

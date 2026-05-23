@@ -22,6 +22,18 @@ make images
 
 # Run server
 make run
+
+# Run linter
+make lint
+
+# Run type check
+make typecheck
+
+# Auto-format all codebase files
+make fmt
+
+# Run the complete verification suite (fmt + lint + typecheck + test + build)
+make check
 ```
 
 > macOS: `make build` calls `codesign` to apply `entitlements.plist` — required for `Virtualization.framework` to work.

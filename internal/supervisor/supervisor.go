@@ -290,4 +290,3 @@ func (s *Supervisor) CopyOut(id string, path string, dest string) error {
 	// 4. Call backend
 	return s.backend.CopyOut(handle, path, dest)
 }
-

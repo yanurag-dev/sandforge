@@ -12,16 +12,16 @@ import (
 func TestEvaluateMount(t *testing.T) {
 	// Create a real temp directory for testing symlinks and path resolution
 	tempBase := t.TempDir()
-	
+
 	workspacesDir := filepath.Join(tempBase, "workspaces")
-	err := os.MkdirAll(workspacesDir, 0755)
+	err := os.MkdirAll(workspacesDir, 0750)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a "forbidden" directory outside the allowed base
 	forbiddenDir := filepath.Join(tempBase, "forbidden")
-	err = os.MkdirAll(forbiddenDir, 0755)
+	err = os.MkdirAll(forbiddenDir, 0750)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,14 +35,14 @@ func TestEvaluateMount(t *testing.T) {
 
 	// Create a path that has a blocked pattern as a substring but not a segment
 	falsePositivePath := filepath.Join(workspacesDir, "my-ssh-notes.txt")
-	err = os.WriteFile(falsePositivePath, []byte("test"), 0644)
+	err = os.WriteFile(falsePositivePath, []byte("test"), 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a real blocked segment
 	blockedSegmentDir := filepath.Join(workspacesDir, ".ssh")
-	err = os.MkdirAll(blockedSegmentDir, 0755)
+	err = os.MkdirAll(blockedSegmentDir, 0750)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestEvaluateMount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Ensure the path exists so EvalSymlinks doesn't just fail on 'not found'
 			if !tt.wantError || tt.name == "Real blocked segment (.ssh) rejected" || tt.name == "Symlink escape rejected" {
-				os.MkdirAll(tt.hostPath, 0755)
+				_ = os.MkdirAll(tt.hostPath, 0750)
 			}
 
 			mount := api.WorkspaceMount{

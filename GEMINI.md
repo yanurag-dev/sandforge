@@ -23,7 +23,10 @@ Following the "Control Plane Outside, Execution Inside" principle:
 - **Initialize/Sync Dependencies:** `go mod tidy`
 - **Build the CLI:** `go build -o sandforge ./cmd/sandforge`
 - **Run Tests:** `go test ./...`
-- **Linting:** (TODO: Add linting configuration, e.g., golangci-lint)
+- **Linting:** `make lint`
+- **Type Checking:** `make typecheck`
+- **Formatting:** `make fmt`
+- **Complete Verification Suite:** `make check`
 
 ### Running the Sandbox
 (TODO: Add instructions once the first backend driver is functional)

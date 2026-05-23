@@ -227,7 +227,7 @@ func (v *VZBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, er
 	if err != nil {
 		return api.ExecResult{}, fmt.Errorf("exec: dial guest: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload := agentproto.ExecRequest{
 		Command:    req.Command,
@@ -259,7 +259,7 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 	if err != nil {
 		return fmt.Errorf("copyout: dial guest: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload := agentproto.CopyOutRequest{GuestPath: guestPath}
 	if err := agentproto.WriteRequest(conn, "copyout", payload); err != nil {
@@ -274,7 +274,7 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 		return fmt.Errorf("copyout: guest error: %s", resp.Error)
 	}
 
-	if err := os.WriteFile(dest, resp.Data, 0o644); err != nil {
+	if err := os.WriteFile(dest, resp.Data, 0o600); err != nil {
 		return fmt.Errorf("copyout: write dest %s: %w", dest, err)
 	}
 	return nil
