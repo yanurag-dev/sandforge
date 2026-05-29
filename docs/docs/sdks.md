@@ -12,15 +12,18 @@ Sandforge provides native library bindings in Go and JavaScript to make it easy 
 
 ## 🐹 1. Go SDK
 
-The Go SDK (`pkg/api`) provides interface-driven abstractions to spawn, query, and run commands in microVM sandboxes on the host machine.
+The Go SDK provides two interfaces:
+- **`pkg/client.Client`** — HTTP client for talking to a running Sandforge control plane (recommended for most users)
+- **`pkg/api`** — Low-level types for sandbox specifications and execution requests
 
 ### Installation
 ```bash
 go get github.com/yanurag-dev/sandforge@latest
 ```
 
-### Complete Code Example
-This example initializes an isolated sandbox, mounts the local workspace directory read-only, executes a terminal command, and cleans up resources.
+### HTTP Client Example (Recommended)
+
+This example connects to a running Sandforge control plane, creates a sandbox, executes a command, and retrieves the result.
 
 ```go
 package main
@@ -32,54 +35,124 @@ import (
 	"time"
 
 	"github.com/yanurag-dev/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/pkg/client"
 )
 
 func main() {
-	// Create context with timeout for guest setup
+	// Connect to the control plane (assumes 'sandforge server' is running)
+	c := client.NewClient("http://localhost:8080")
+
+	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Configure sandbox
-	cfg := &api.Config{
-		CPU:      2,
-		MemoryMB: 2048,
-		Network:  api.NetworkModeOffline, // Drop external sockets
-		Mounts: []api.Mount{
+	// 1. Create a sandbox
+	spec := api.SandboxSpec{
+		CPU:         2,
+		MemoryMb:    2048,
+		NetworkMode: "offline",
+		Mounts: []api.WorkspaceMount{
 			{
 				HostPath:  "/Users/anurag/Developer/app",
 				GuestPath: "/workspace",
-				ReadOnly:  true, // Safe read-only mount
+				ReadOnly:  true,
 			},
-		},
-		Env: map[string]string{
-			"GO_ENV": "sandbox-test",
 		},
 	}
 
-	// 1. Provision Guest VM
-	sb, err := api.NewSandbox(ctx, cfg)
+	sb, err := c.CreateSandbox(ctx, spec)
 	if err != nil {
-		log.Fatalf("Failed to spin up sandbox microVM: %v", err)
+		log.Fatalf("Failed to create sandbox: %v", err)
 	}
 	defer func() {
-		// 3. Reclaim system resources
-		if err := sb.Close(); err != nil {
-			log.Printf("Error reclaiming resources: %v", err)
+		// Clean up: destroy the sandbox when done
+		if err := c.Destroy(context.Background(), sb.ID); err != nil {
+			log.Printf("Error destroying sandbox: %v", err)
 		}
 	}()
 
-	// 2. Execute command
-	res, err := sb.Run(ctx, "cd /workspace && go test ./...")
+	fmt.Printf("Created sandbox: %s\n", sb.ID)
+
+	// 2. Check sandbox status
+	state, err := c.GetStatus(ctx, sb.ID)
 	if err != nil {
-		log.Fatalf("Execution failure: %v", err)
+		log.Fatalf("Failed to get status: %v", err)
+	}
+	fmt.Printf("Sandbox state: %s\n", state)
+
+	// 3. Execute a command inside the sandbox
+	execReq := api.ExecRequest{
+		Command: []string{"sh", "-c", "cd /workspace && go test ./..."},
+	}
+
+	result, err := c.Exec(ctx, sb.ID, execReq)
+	if err != nil {
+		log.Fatalf("Execution failed: %v", err)
 	}
 
 	// 4. Output results
-	fmt.Printf("Exit Code: %d\n", res.ExitCode)
-	fmt.Printf("Stdout:\n%s\n", res.Stdout)
-	if len(res.Stderr) > 0 {
-		fmt.Printf("Stderr:\n%s\n", res.Stderr)
+	fmt.Printf("Exit Code: %d\n", result.ExitCode)
+	fmt.Printf("Stdout:\n%s\n", result.Stdout)
+	if len(result.Stderr) > 0 {
+		fmt.Printf("Stderr:\n%s\n", result.Stderr)
 	}
+}
+```
+
+### Client API Reference
+
+#### `NewClient(baseURL string) *Client`
+Creates a new client pointed at a Sandforge control plane.
+
+```go
+c := client.NewClient("http://localhost:8080")
+```
+
+#### `CreateSandbox(ctx context.Context, spec api.SandboxSpec) (*Sandbox, error)`
+Provisions a new sandbox and returns a handle. The SDK generates a unique ID automatically.
+
+#### `Exec(ctx context.Context, id string, req api.ExecRequest) (*api.ExecResult, error)`
+Runs a command inside a sandbox. Returns exit code, stdout, stderr, and any artifacts.
+
+#### `GetStatus(ctx context.Context, id string) (string, error)`
+Returns the current lifecycle state of a sandbox (`provisioning`, `ready`, `executing`, `destroyed`, etc.).
+
+#### `Destroy(ctx context.Context, id string) error`
+Tears down the sandbox and reclaims system resources.
+
+### Sandbox Specification
+
+The `api.SandboxSpec` type configures resources, networking, and mounts:
+
+```go
+type SandboxSpec struct {
+	CPU         int                 // Number of vCPUs (e.g., 2)
+	MemoryMb    int                 // RAM in megabytes (e.g., 2048)
+	NetworkMode string              // "offline" or "fetch" (default: "offline")
+	Mounts      []WorkspaceMount    // Host directories to share with the guest
+}
+
+type WorkspaceMount struct {
+	HostPath  string // Path on the host machine
+	GuestPath string // Mount point inside the sandbox
+	ReadOnly  bool   // If true, mount is read-only to prevent escape
+}
+```
+
+### Execution Requests
+
+```go
+type ExecRequest struct {
+	Command    []string          // e.g., []string{"go", "test", "./..."}
+	Env        map[string]string // Environment variables (optional)
+	TimeoutSec int               // Execution timeout in seconds (optional)
+}
+
+type ExecResult struct {
+	ExitCode  int    // Process exit code
+	Stdout    string // Standard output
+	Stderr    string // Standard error
+	Artifacts []string // Paths to files copied out (future)
 }
 ```
 
