@@ -130,7 +130,12 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log but don't override the primary error
+			_ = err
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
