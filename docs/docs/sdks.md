@@ -1,217 +1,430 @@
 ---
 sidebar_position: 8
 title: Client SDK Bindings
-description: Complete SDK documentation and library code examples for Go and JavaScript/Node.js.
+description: TypeScript, Python, and Go SDK documentation for the Sandforge sandbox platform.
 ---
 
 # Client SDK Bindings 📦
 
-Sandforge provides native library bindings in Go and JavaScript to make it easy to incorporate hypervisor sandboxes directly into autonomous agent frameworks.
+Sandforge provides native SDKs in TypeScript, Python, and Go. All three SDKs talk to the same HTTP control plane — choose the one that fits your agent framework.
+
+| SDK | Package | Min runtime |
+|-----|---------|-------------|
+| TypeScript | `@sandforge/sdk` (npm) | Node.js 18+ |
+| Python | `sandforge-sdk` (PyPI) | Python 3.8+ |
+| Go | `github.com/yanurag-dev/sandforge/pkg/client` | Go 1.21+ |
 
 ---
 
-## 🐹 1. Go SDK
-
-The Go SDK provides two interfaces:
-- **`pkg/client.Client`** — HTTP client for talking to a running Sandforge control plane (recommended for most users)
-- **`pkg/api`** — Low-level types for sandbox specifications and execution requests
+## 🟦 1. TypeScript SDK
 
 ### Installation
+
+```bash
+npm install @sandforge/sdk
+```
+
+### Quick Start
+
+```typescript
+import { Client } from "@sandforge/sdk";
+
+const client = new Client("http://localhost:8080");
+
+// Create a sandbox
+const sandbox = await client.create({
+  cpu: 2,
+  memoryMb: 512,
+  networkMode: "offline",
+});
+
+console.log("Sandbox:", sandbox.id);
+
+// Run a command
+const result = await sandbox.commands.run({
+  command: ["echo", "Hello from Sandforge!"],
+});
+
+console.log("Exit code:", result.exitCode);
+console.log("Stdout:", result.stdout);
+
+// Get sandbox state
+const info = await sandbox.info();
+console.log("State:", info.state);
+
+// Destroy
+await sandbox.kill();
+```
+
+### API Reference
+
+#### `new Client(baseURL, fetchImpl?)`
+
+Creates a client pointing at a Sandforge control plane.
+
+```typescript
+const client = new Client("http://localhost:8080");
+```
+
+#### `client.create(spec?): Promise<Sandbox>`
+
+Provisions a new sandbox. `spec` is optional — omit it to use server defaults.
+
+```typescript
+const sandbox = await client.create({
+  cpu: 4,
+  memoryMb: 2048,
+  diskGb: 20,
+  networkMode: "fetch",           // "offline" | "fetch" | "full"
+  mounts: [
+    { hostPath: "/my/project", guestPath: "/workspace", readOnly: false }
+  ],
+});
+```
+
+#### `sandbox.commands.run(request): Promise<ExecResult>`
+
+Executes a command inside the sandbox.
+
+```typescript
+const result = await sandbox.commands.run({
+  command: ["sh", "-c", "cd /workspace && npm test"],
+  cwd: "/",
+  env: { NODE_ENV: "test" },
+  timeoutSec: 120,
+});
+
+console.log(result.exitCode);  // 0
+console.log(result.stdout);
+console.log(result.stderr);
+```
+
+#### `sandbox.info(): Promise<SandboxInfo>`
+
+Returns the current lifecycle state (`provisioning`, `ready`, `executing`, `destroyed`).
+
+#### `sandbox.kill(): Promise<void>`
+
+Destroys the sandbox and reclaims VM resources.
+
+### Types
+
+```typescript
+interface SandboxSpec {
+  backend?: string;           // "macos-vz" | "linux-kvm" | "linux-firecracker"
+  cpu?: number;
+  memoryMb?: number;
+  diskGb?: number;
+  timeoutSec?: number;
+  networkMode?: string;       // "offline" | "fetch" | "full"
+  mounts?: WorkspaceMount[];
+}
+
+interface WorkspaceMount {
+  hostPath: string;
+  guestPath: string;
+  readOnly?: boolean;
+}
+
+interface ExecRequest {
+  command: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  timeoutSec?: number;
+}
+
+interface ExecResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  artifacts?: string[];
+}
+
+interface SandboxInfo {
+  id: string;
+  state: string;
+}
+```
+
+### Error Handling
+
+```typescript
+import { Client, SandboxError } from "@sandforge/sdk";
+
+try {
+  const sandbox = await client.create();
+  // ...
+} catch (err) {
+  if (err instanceof SandboxError) {
+    console.error(`API error ${err.statusCode}: ${err.message}`);
+  }
+}
+```
+
+---
+
+## 🐍 2. Python SDK
+
+### Installation
+
+```bash
+pip install sandforge-sdk
+```
+
+### Quick Start
+
+```python
+from sandforge import Client
+
+client = Client("http://localhost:8080")
+
+# Create a sandbox
+sandbox = client.create_sandbox()
+
+# Run a command
+result = sandbox.commands.run(["echo", "Hello from Sandforge!"])
+print(result.stdout)       # "Hello from Sandforge!\n"
+print(result.exit_code)    # 0
+
+# Get sandbox state
+info = sandbox.info()
+print(info.state)          # "ready"
+
+# Destroy
+sandbox.kill()
+```
+
+### API Reference
+
+#### `Client(base_url, timeout=60)`
+
+Creates a client pointing at a Sandforge control plane.
+
+```python
+client = Client("http://localhost:8080", timeout=30)
+```
+
+#### `client.create_sandbox(spec?) -> SandboxHandle`
+
+Provisions a new sandbox. `spec` is optional.
+
+```python
+from sandforge import Client, SandboxSpec, WorkspaceMount
+
+spec = SandboxSpec(
+    cpu=4,
+    memory_mb=2048,
+    disk_gb=20,
+    network_mode="fetch",        # "offline" | "fetch" | "full"
+    mounts=[
+        WorkspaceMount(
+            host_path="/my/project",
+            guest_path="/workspace",
+            read_only=False,
+        )
+    ],
+)
+
+sandbox = client.create_sandbox(spec)
+```
+
+#### `sandbox.commands.run(command, cwd="/", env=None, timeout_sec=60) -> ExecResult`
+
+Executes a command inside the sandbox.
+
+```python
+result = sandbox.commands.run(
+    command=["sh", "-c", "cd /workspace && pytest"],
+    cwd="/",
+    env={"PYTHONUNBUFFERED": "1"},
+    timeout_sec=300,
+)
+
+print(result.exit_code)
+print(result.stdout)
+print(result.stderr)
+```
+
+#### `sandbox.info() -> SandboxInfo`
+
+Returns the current lifecycle state.
+
+#### `sandbox.kill() -> None`
+
+Destroys the sandbox and reclaims VM resources.
+
+### Types
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class SandboxSpec:
+    backend: str = "macos-vz"        # "macos-vz" | "linux-kvm" | "linux-firecracker"
+    cpu: int = 2
+    memory_mb: int = 512
+    disk_gb: int = 10
+    timeout_sec: int = 3600
+    network_mode: str = "offline"    # "offline" | "fetch" | "full"
+    mounts: List[WorkspaceMount] = field(default_factory=list)
+
+@dataclass
+class WorkspaceMount:
+    host_path: str
+    guest_path: str
+    read_only: bool = False
+
+@dataclass
+class ExecResult:
+    exit_code: int
+    stdout: str
+    stderr: str
+    artifacts: List[str] = field(default_factory=list)
+
+@dataclass
+class SandboxInfo:
+    id: str
+    state: str
+```
+
+### Error Handling
+
+```python
+from sandforge import Client, NetworkError, SandboxNotFoundError, SandforgeException
+
+try:
+    sandbox = client.create_sandbox()
+    result = sandbox.commands.run(["false"])
+    if result.exit_code != 0:
+        print(f"Command failed: {result.stderr}")
+    sandbox.kill()
+except NetworkError as e:
+    print(f"Network error: {e}")
+except SandboxNotFoundError as e:
+    print(f"Sandbox not found: {e}")
+except SandforgeException as e:
+    print(f"Sandforge error: {e}")
+```
+
+---
+
+## 🐹 3. Go SDK
+
+### Installation
+
 ```bash
 go get github.com/yanurag-dev/sandforge@latest
 ```
 
-### HTTP Client Example (Recommended)
-
-This example connects to a running Sandforge control plane, creates a sandbox, executes a command, and retrieves the result.
+### Quick Start
 
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"time"
+    "context"
+    "fmt"
+    "log"
+    "time"
 
-	"github.com/yanurag-dev/sandforge/pkg/api"
-	"github.com/yanurag-dev/sandforge/pkg/client"
+    "github.com/yanurag-dev/sandforge/pkg/api"
+    "github.com/yanurag-dev/sandforge/pkg/client"
 )
 
 func main() {
-	// Connect to the control plane (assumes 'sandforge server' is running)
-	c := client.NewClient("http://localhost:8080")
+    c := client.NewClient("http://localhost:8080")
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
 
-	// 1. Create a sandbox
-	spec := api.SandboxSpec{
-		CPU:         2,
-		MemoryMb:    2048,
-		NetworkMode: "offline",
-		Mounts: []api.WorkspaceMount{
-			{
-				HostPath:  "/Users/anurag/Developer/app",
-				GuestPath: "/workspace",
-				ReadOnly:  true,
-			},
-		},
-	}
+    // Create a sandbox
+    spec := api.SandboxSpec{
+        CPU:         2,
+        MemoryMb:    512,
+        NetworkMode: "offline",
+    }
 
-	sb, err := c.CreateSandbox(ctx, spec)
-	if err != nil {
-		log.Fatalf("Failed to create sandbox: %v", err)
-	}
-	defer func() {
-		// Clean up: destroy the sandbox when done
-		if err := c.Destroy(context.Background(), sb.ID); err != nil {
-			log.Printf("Error destroying sandbox: %v", err)
-		}
-	}()
+    sb, err := c.CreateSandbox(ctx, spec)
+    if err != nil {
+        log.Fatalf("create failed: %v", err)
+    }
+    defer c.Destroy(context.Background(), sb.ID)
 
-	fmt.Printf("Created sandbox: %s\n", sb.ID)
+    fmt.Println("Sandbox:", sb.ID)
 
-	// 2. Check sandbox status
-	state, err := c.GetStatus(ctx, sb.ID)
-	if err != nil {
-		log.Fatalf("Failed to get status: %v", err)
-	}
-	fmt.Printf("Sandbox state: %s\n", state)
+    // Run a command
+    result, err := c.Exec(ctx, sb.ID, api.ExecRequest{
+        Command: []string{"echo", "Hello from Sandforge!"},
+    })
+    if err != nil {
+        log.Fatalf("exec failed: %v", err)
+    }
 
-	// 3. Execute a command inside the sandbox
-	execReq := api.ExecRequest{
-		Command: []string{"sh", "-c", "cd /workspace && go test ./..."},
-	}
-
-	result, err := c.Exec(ctx, sb.ID, execReq)
-	if err != nil {
-		log.Fatalf("Execution failed: %v", err)
-	}
-
-	// 4. Output results
-	fmt.Printf("Exit Code: %d\n", result.ExitCode)
-	fmt.Printf("Stdout:\n%s\n", result.Stdout)
-	if len(result.Stderr) > 0 {
-		fmt.Printf("Stderr:\n%s\n", result.Stderr)
-	}
+    fmt.Printf("Exit code: %d\n", result.ExitCode)
+    fmt.Printf("Stdout: %s\n", result.Stdout)
 }
 ```
 
-### Client API Reference
+### API Reference
 
 #### `NewClient(baseURL string) *Client`
-Creates a new client pointed at a Sandforge control plane.
 
-```go
-c := client.NewClient("http://localhost:8080")
-```
+Creates a new client.
 
-#### `CreateSandbox(ctx context.Context, spec api.SandboxSpec) (*Sandbox, error)`
-Provisions a new sandbox and returns a handle. The SDK generates a unique ID automatically.
+#### `CreateSandbox(ctx, spec) (*Sandbox, error)`
 
-#### `Exec(ctx context.Context, id string, req api.ExecRequest) (*api.ExecResult, error)`
-Runs a command inside a sandbox. Returns exit code, stdout, stderr, and any artifacts.
+Provisions a new sandbox. Returns a handle with the sandbox ID.
 
-#### `GetStatus(ctx context.Context, id string) (string, error)`
-Returns the current lifecycle state of a sandbox (`provisioning`, `ready`, `executing`, `destroyed`, etc.).
+#### `Exec(ctx, id, req) (*api.ExecResult, error)`
 
-#### `Destroy(ctx context.Context, id string) error`
-Tears down the sandbox and reclaims system resources.
+Runs a command. Returns exit code, stdout, stderr, and artifacts.
 
-### Sandbox Specification
+#### `GetStatus(ctx, id) (string, error)`
 
-The `api.SandboxSpec` type configures resources, networking, and mounts:
+Returns the current lifecycle state string.
+
+#### `Destroy(ctx, id) error`
+
+Tears down the sandbox.
+
+### Types
 
 ```go
 type SandboxSpec struct {
-	CPU         int                 // Number of vCPUs (e.g., 2)
-	MemoryMb    int                 // RAM in megabytes (e.g., 2048)
-	NetworkMode string              // "offline" or "fetch" (default: "offline")
-	Mounts      []WorkspaceMount    // Host directories to share with the guest
+    CPU         int
+    MemoryMb    int
+    NetworkMode string           // "offline" | "fetch" | "full"
+    Mounts      []WorkspaceMount
 }
 
 type WorkspaceMount struct {
-	HostPath  string // Path on the host machine
-	GuestPath string // Mount point inside the sandbox
-	ReadOnly  bool   // If true, mount is read-only to prevent escape
+    HostPath  string
+    GuestPath string
+    ReadOnly  bool
 }
-```
 
-### Execution Requests
-
-```go
 type ExecRequest struct {
-	Command    []string          // e.g., []string{"go", "test", "./..."}
-	Env        map[string]string // Environment variables (optional)
-	TimeoutSec int               // Execution timeout in seconds (optional)
+    Command    []string
+    Env        map[string]string
+    TimeoutSec int
 }
 
 type ExecResult struct {
-	ExitCode  int    // Process exit code
-	Stdout    string // Standard output
-	Stderr    string // Standard error
-	Artifacts []string // Paths to files copied out (future)
+    ExitCode  int
+    Stdout    string
+    Stderr    string
+    Artifacts []string
 }
 ```
 
 ---
 
-## 🟨 2. JavaScript / Node.js SDK
+## What's not in v0
 
-The JavaScript SDK is built for modern asynchronous Node.js platforms, enabling easy execution from LangChain, AutoGPT, or custom typescript frameworks.
-
-### Installation
-```bash
-npm install @sandforge/sdk
-```
-
-### Complete Code Example
-This example creates a sandbox using async/await syntax, injects environment secrets, and intercepts potential runtime errors.
-
-```javascript
-import { Sandforge } from '@sandforge/sdk';
-
-async function main() {
-  // 1. Initialize client and request hypervisor instance
-  const sandbox = await Sandforge.create({
-    cpu: 2,
-    memoryMB: 2048,
-    network: 'offline', // strict offline sandbox
-    mounts: [
-      {
-        hostPath: '/Users/anurag/code',
-        guestPath: '/workspace',
-        readOnly: false
-      }
-    ],
-    env: {
-      NODE_ENV: 'sandbox'
-    }
-  });
-
-  try {
-    console.log(`Sandbox launched successfully with ID: ${sandbox.id}`);
-
-    // 2. Safely run untrusted agent code
-    const result = await sandbox.run('cd /workspace && npm install --dry-run');
-
-    console.log(`Execution exited with code: ${result.exitCode}`);
-    console.log(`Stdout: ${result.stdout}`);
-
-    if (result.stderr) {
-      console.warn(`Stderr: ${result.stderr}`);
-    }
-
-  } catch (error) {
-    console.error('An error occurred during sandbox operation:', error);
-  } finally {
-    // 3. Terminate guest microVM and clean up resources
-    await sandbox.close();
-    console.log('Sandbox resources safely reclaimed.');
-  }
-}
-
-main();
-```
+| Feature | Reason | Planned |
+|---------|--------|---------|
+| `files.write()` | Needs new VSOCK op | P1 |
+| `files.list()` | Needs new VSOCK op | P1 |
+| `files.read()` | Needs VSOCK copyout | P1 |
+| Streaming output | Protocol redesign needed | P3 |
+| Git helpers | Deferred | P2 |
