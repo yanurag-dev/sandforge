@@ -8,11 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sandforge/sandforge/internal/backend"
-	"github.com/sandforge/sandforge/internal/controlplane"
-	"github.com/sandforge/sandforge/internal/policy"
-	"github.com/sandforge/sandforge/internal/supervisor"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/internal/backend"
+	"github.com/yanurag-dev/sandforge/internal/controlplane"
+	"github.com/yanurag-dev/sandforge/internal/policy"
+	"github.com/yanurag-dev/sandforge/internal/supervisor"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 var (

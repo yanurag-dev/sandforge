@@ -11,8 +11,8 @@ import (
 
 	"github.com/Code-Hex/vz/v3"
 
-	"github.com/sandforge/sandforge/pkg/agentproto"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/pkg/agentproto"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 // guestAgentPort is the VSOCK port the in-guest agent listens on.

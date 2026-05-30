@@ -23,7 +23,7 @@ import (
 
 	"github.com/mdlayher/vsock"
 
-	"github.com/sandforge/sandforge/pkg/agentproto"
+	"github.com/yanurag-dev/sandforge/pkg/agentproto"
 )
 
 const (
