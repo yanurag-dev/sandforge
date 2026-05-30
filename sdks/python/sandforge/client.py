@@ -316,6 +316,22 @@ class FilesAPI:
     def __init__(self, sandbox: "SandboxHandle"):
         self._sandbox = sandbox
 
+    def read(self, path: str, as_bytes: bool = False):
+        """Read a file from the sandbox.
+
+        Args:
+            path: Path to the file inside the sandbox.
+            as_bytes: If True, return raw bytes. Default returns str.
+
+        Returns:
+            str or bytes: File contents.
+        """
+        resp = self._sandbox._client._do(
+            "GET", f"/v1/sandboxes/{self._sandbox.id}/files/read?path={path}", None
+        )
+        data = bytes(resp.get("data", []))
+        return data if as_bytes else data.decode()
+
     def write(self, path: str, data) -> int:
         """Write data to a file inside the sandbox.
 
