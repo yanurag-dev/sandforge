@@ -14,11 +14,8 @@ import (
 
 func TestNewVZBackend(t *testing.T) {
 	b := NewVZBackend()
-	if b == nil {
-		t.Fatal("NewVZBackend returned nil")
-	}
-	if len(b.sandboxes) != 0 {
-		t.Errorf("expected empty sandboxes map, got %d entries", len(b.sandboxes))
+	if b == nil || len(b.sandboxes) != 0 {
+		t.Errorf("NewVZBackend() = %v, want non-nil backend with empty sandboxes", b)
 	}
 }
 
