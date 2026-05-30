@@ -186,22 +186,6 @@ class TestFilesAPI(unittest.TestCase):
         resp.json.return_value = __import__("json").loads(body)
         client.session.get = MagicMock(return_value=resp)
 
-    def test_read_returns_text_by_default(self):
-        sandbox, client = self._make_sandbox()
-        payload = __import__("json").dumps({"data": list(b"hello")})
-        self._mock_get(client, payload)
-        content = sandbox.files.read("/tmp/hello.txt")
-        self.assertIsInstance(content, str)
-        self.assertEqual(content, "hello")
-
-    def test_read_returns_bytes_when_requested(self):
-        sandbox, client = self._make_sandbox()
-        payload = __import__("json").dumps({"data": list(b"hello")})
-        self._mock_get(client, payload)
-        content = sandbox.files.read("/tmp/hello.txt", as_bytes=True)
-        self.assertIsInstance(content, bytes)
-        self.assertEqual(content, b"hello")
-
     def test_write_puts_to_files_endpoint(self):
         sandbox, client = self._make_sandbox()
         self._mock_put(client, '{"size": 5}')

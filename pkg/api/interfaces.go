@@ -38,7 +38,6 @@ type SandboxBackend interface {
 	MountWorkspace(handle string, mount WorkspaceMount) error
 	Exec(handle string, req ExecRequest) (ExecResult, error)
 	CopyOut(handle string, path string, dest string) error
-	ReadFile(handle string, guestPath string) ([]byte, error)
 	WriteFile(handle string, guestPath string, data []byte) (int, error)
 	ListDir(handle string, guestPath string) ([]DirEntry, error)
 	StatPath(handle string, guestPath string) (StatInfo, error)

@@ -164,42 +164,6 @@ describe("sandbox.info()", () => {
   });
 });
 
-describe("sandbox.files.read()", () => {
-  let server: http.Server;
-  let baseURL: string;
-  const fixedID = "sbx-fsread";
-
-  before(async () => {
-    ({ server, baseURL } = await startMockServer((req) => {
-      if (req.method === "POST" && req.url === "/v1/sandboxes") {
-        return { status: 200, body: JSON.stringify({ id: fixedID }) };
-      }
-      if (req.method === "GET" && req.url?.startsWith(`/v1/sandboxes/${fixedID}/files/read`)) {
-        const bytes = Array.from(new TextEncoder().encode("hello"));
-        return { status: 200, body: JSON.stringify({ data: bytes }) };
-      }
-      return { status: 404, body: JSON.stringify({ error: "not found" }) };
-    }));
-  });
-
-  after(() => { server.close(); });
-
-  it("returns text by default", async () => {
-    const client = new Client(baseURL);
-    const sandbox = await client.create();
-    const content = await sandbox.files.read("/tmp/hello.txt");
-    assert.equal(content, "hello");
-  });
-
-  it("returns Uint8Array when format=bytes", async () => {
-    const client = new Client(baseURL);
-    const sandbox = await client.create();
-    const content = await sandbox.files.read("/tmp/hello.txt", { format: "bytes" });
-    assert.ok(content instanceof Uint8Array);
-    assert.equal(content.length, 5);
-  });
-});
-
 describe("sandbox.files.write()", () => {
   let server: http.Server;
   let baseURL: string;

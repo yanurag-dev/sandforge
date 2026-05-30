@@ -315,19 +315,6 @@ func (s *Supervisor) CopyOut(id string, path string, dest string) error {
 	return s.backend.CopyOut(handle, path, dest)
 }
 
-// ReadFile reads a file from guestPath inside the sandbox and returns its contents.
-// Allowed during Ready or Executing — reads are safe concurrently.
-func (s *Supervisor) ReadFile(id string, guestPath string) ([]byte, error) {
-	handle, state, err := s.getInstance(id)
-	if err != nil {
-		return nil, err
-	}
-	if state != StateReady && state != StateExecuting {
-		return nil, fmt.Errorf("sandbox is in state %s, must be %s or %s to read", state, StateReady, StateExecuting)
-	}
-	return s.backend.ReadFile(handle, guestPath)
-}
-
 // WriteFile writes data to guestPath inside the sandbox, creating parent directories.
 // Only allowed when the sandbox is Ready — writing during execution risks a file race.
 func (s *Supervisor) WriteFile(id string, guestPath string, data []byte) (int, error) {
