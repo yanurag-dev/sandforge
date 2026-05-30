@@ -9,7 +9,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="sandforge-sdk",
     version="0.1.0",
-    author="Sandforge Contributors",
+    author="Anurag Yadav",
+    author_email="yadavanurag1310@gmail.com",
     description="Python SDK for Sandforge hypervisor sandbox platform",
     long_description=long_description,
     long_description_content_type="text/markdown",

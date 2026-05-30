@@ -1,0 +1,95 @@
+name: Release SDKs
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  # ── Validate before publishing ────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: TypeScript tests
+        working-directory: sdks/typescript
+        run: npm ci && npm run build && npm test
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python tests
+        working-directory: sdks/python
+        run: |
+          pip install requests
+          python -m unittest discover -s tests -v
+
+  # ── Publish @sandforge/sdk to npm ─────────────────────────────────────────
+  publish-npm:
+    name: Publish npm
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install and build
+        working-directory: sdks/typescript
+        run: npm ci && npm run build
+
+      - name: Publish
+        working-directory: sdks/typescript
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── Publish sandforge-sdk to PyPI ─────────────────────────────────────────
+  publish-pypi:
+    name: Publish PyPI
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build distribution
+        working-directory: sdks/python
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python/dist/
+          password: ${{ secrets.PYPI_TOKEN }}
