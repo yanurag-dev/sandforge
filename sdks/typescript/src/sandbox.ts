@@ -50,6 +50,18 @@ export class FilesNamespace {
   ) {}
 
   /**
+   * read reads a file from the sandbox, returning text or raw bytes.
+   */
+  async read(path: string, opts?: { format: "text" | "bytes" }): Promise<string | Uint8Array> {
+    const resp = await this.http.do<{ data: number[] }>(
+      "GET",
+      `/v1/sandboxes/${this.sandboxID}/files/read?path=${encodeURIComponent(path)}`,
+    );
+    const bytes = new Uint8Array(resp.data ?? []);
+    return opts?.format === "bytes" ? bytes : new TextDecoder().decode(bytes);
+  }
+
+  /**
    * write writes data to a file inside the sandbox.
    */
   async write(path: string, data: string | Uint8Array): Promise<WriteFileResponse> {

@@ -60,6 +60,15 @@ func (m *MockBackend) CopyOut(handle string, path string, dest string) error {
 	return nil
 }
 
+func (m *MockBackend) ReadFile(handle string, guestPath string) ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return nil, fmt.Errorf("sandbox handle not found: %s", handle)
+	}
+	return []byte("mock file contents"), nil
+}
+
 func (m *MockBackend) WriteFile(handle string, guestPath string, data []byte) (int, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -46,6 +46,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("GET /v1/sandboxes/{id}", s.handleStatus)
 	mux.HandleFunc("PUT /v1/sandboxes/{id}/files", s.handleWriteFile)
 	mux.HandleFunc("GET /v1/sandboxes/{id}/files", s.handleListDir)
+	mux.HandleFunc("GET /v1/sandboxes/{id}/files/read", s.handleReadFile)
 	mux.HandleFunc("GET /v1/sandboxes/{id}/stat", s.handleStat)
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 
@@ -197,6 +198,25 @@ func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, writeFileResponse{Size: size})
+}
+
+type readFileResponse struct {
+	Data []byte `json:"data"`
+}
+
+func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	guestPath := r.URL.Query().Get("path")
+	if guestPath == "" {
+		writeError(w, http.StatusBadRequest, "path query param is required")
+		return
+	}
+	data, err := s.supervisor.ReadFile(id, guestPath)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, readFileResponse{Data: data})
 }
 
 func (s *Server) handleListDir(w http.ResponseWriter, r *http.Request) {
