@@ -16,7 +16,10 @@ import (
 	"github.com/sandforge/sandforge/pkg/api"
 )
 
-const defaultAddr = ":8080"
+const (
+	defaultAddr       = ":8080"
+	maxWriteBodyBytes = 32 * 1024 * 1024 // 32 MiB
+)
 
 type Server struct {
 	supervisor *supervisor.Supervisor
@@ -178,6 +181,7 @@ type writeFileResponse struct {
 
 func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodyBytes)
 	var req writeFileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())

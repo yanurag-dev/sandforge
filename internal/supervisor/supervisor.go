@@ -17,6 +17,7 @@ const (
 	StateProvisioning     State = "provisioning"
 	StateReady            State = "ready"
 	StateExecuting        State = "executing"
+	StateWritingFile      State = "writing_file"
 	StateCopyingArtifacts State = "copying_artifacts"
 	StateDestroying       State = "destroying"
 	StateDestroyed        State = "destroyed"
@@ -89,6 +90,19 @@ func (s *Supervisor) getInstance(id string) (handle string, state State, err err
 	instance.mu.RUnlock()
 
 	return handle, state, nil
+}
+
+// lookupInstance returns the raw *SandboxInstance for callers that need to
+// hold instance.mu themselves to prevent race conditions on state transitions.
+func (s *Supervisor) lookupInstance(id string) (*SandboxInstance, error) {
+	s.mu.RLock()
+	instance, exists := s.instances[id]
+	s.mu.RUnlock()
+
+	if !exists {
+		return nil, errors.New("sandbox not found")
+	}
+	return instance, nil
 }
 
 func NewSupervisor(backend api.SandboxBackend, engine *policy.Engine) (*Supervisor, error) {
@@ -304,17 +318,33 @@ func (s *Supervisor) CopyOut(id string, path string, dest string) error {
 // WriteFile writes data to guestPath inside the sandbox, creating parent directories.
 // Only allowed when the sandbox is Ready — writing during execution risks a file race.
 func (s *Supervisor) WriteFile(id string, guestPath string, data []byte) (int, error) {
-	// 1. Find instance and validate state
-	handle, state, err := s.getInstance(id)
+	// 1. Look up instance
+	instance, err := s.lookupInstance(id)
 	if err != nil {
 		return 0, err
 	}
 
-	if state != StateReady {
+	// 2. Atomically check state and transition to WritingFile so RunCommand
+	//    cannot move the sandbox to StateExecuting concurrently.
+	instance.mu.Lock()
+	if instance.State != StateReady {
+		state := instance.State
+		instance.mu.Unlock()
 		return 0, fmt.Errorf("sandbox is in state %s, must be %s to write", state, StateReady)
 	}
+	instance.State = StateWritingFile
+	handle := instance.Handle
+	instance.mu.Unlock()
 
-	// 2. Call backend
+	defer func() {
+		instance.mu.Lock()
+		if instance.State == StateWritingFile {
+			instance.State = StateReady
+		}
+		instance.mu.Unlock()
+	}()
+
+	// 3. Call backend
 	return s.backend.WriteFile(handle, guestPath, data)
 }
 

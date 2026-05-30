@@ -172,11 +172,11 @@ func handleWrite(w io.Writer, raw json.RawMessage) {
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(req.GuestPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(req.GuestPath), 0o750); err != nil {
 		writeResponse(w, agentproto.WriteFileResponse{Error: "mkdir: " + err.Error()})
 		return
 	}
-	if err := os.WriteFile(req.GuestPath, req.Data, 0o644); err != nil {
+	if err := os.WriteFile(req.GuestPath, req.Data, 0o600); err != nil {
 		writeResponse(w, agentproto.WriteFileResponse{Error: err.Error()})
 		return
 	}

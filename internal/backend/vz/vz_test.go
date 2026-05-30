@@ -104,35 +104,27 @@ func TestMountWorkspaceMissingSandbox(t *testing.T) {
 	}
 }
 
-func TestWriteFileMissingSandbox(t *testing.T) {
-	b := NewVZBackend()
-	_, err := b.WriteFile("bad-handle", "/tmp/file.txt", []byte("hello"))
-	if err == nil {
-		t.Fatal("expected error for missing sandbox")
+func TestFileOpsMissingSandbox(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(b *VZBackend) error
+	}{
+		{"WriteFile", func(b *VZBackend) error {
+			_, err := b.WriteFile("bad-handle", "/tmp/file.txt", []byte("hello"))
+			return err
+		}},
+		{"ListDir", func(b *VZBackend) error { _, err := b.ListDir("bad-handle", "/tmp"); return err }},
+		{"StatPath", func(b *VZBackend) error { _, err := b.StatPath("bad-handle", "/tmp/file.txt"); return err }},
 	}
-	if !strings.Contains(err.Error(), "sandbox handle not found") {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-func TestListDirMissingSandbox(t *testing.T) {
-	b := NewVZBackend()
-	_, err := b.ListDir("bad-handle", "/tmp")
-	if err == nil {
-		t.Fatal("expected error for missing sandbox")
-	}
-	if !strings.Contains(err.Error(), "sandbox handle not found") {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-func TestStatPathMissingSandbox(t *testing.T) {
-	b := NewVZBackend()
-	_, err := b.StatPath("bad-handle", "/tmp/file.txt")
-	if err == nil {
-		t.Fatal("expected error for missing sandbox")
-	}
-	if !strings.Contains(err.Error(), "sandbox handle not found") {
-		t.Errorf("unexpected error message: %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call(NewVZBackend())
+			if err == nil {
+				t.Fatal("expected error for missing sandbox")
+			}
+			if !strings.Contains(err.Error(), "sandbox handle not found") {
+				t.Errorf("unexpected error message: %v", err)
+			}
+		})
 	}
 }
