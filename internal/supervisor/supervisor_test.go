@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/sandforge/sandforge/internal/backend"
-	"github.com/sandforge/sandforge/internal/policy"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/internal/backend"
+	"github.com/yanurag-dev/sandforge/internal/policy"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 func TestSupervisorLifecycle(t *testing.T) {

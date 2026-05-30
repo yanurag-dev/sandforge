@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 // newTestServer spins up a fake control plane. The handler closure lets each

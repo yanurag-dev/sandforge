@@ -5,8 +5,8 @@ package backend
 import (
 	"os"
 
-	"github.com/sandforge/sandforge/internal/backend/vz"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/internal/backend/vz"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 func New() api.SandboxBackend {

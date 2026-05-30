@@ -100,7 +100,7 @@ type agentEnvelope struct {
     ```json
     {
       "exit_code": 0,
-      "stdout": "PASS\nok  github.com/sandforge/sandforge/internal/policy\n",
+      "stdout": "PASS\nok  github.com/yanurag-dev/sandforge/internal/policy\n",
       "stderr": ""
     }
     ```

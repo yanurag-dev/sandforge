@@ -60,6 +60,9 @@ CLI / HTTP client
 |------|------|
 | `pkg/api/` | Core types (`SandboxSpec`, `ExecRequest`, `ExecResult`, `SandboxBackend` interface) |
 | `pkg/agentproto/` | Newline-delimited JSON envelope protocol between host VZ backend and in-guest agent |
+| `sdks/go/` | Go client SDK — HTTP client for the control plane REST API |
+| `sdks/python/` | Python client SDK |
+| `sdks/typescript/` | TypeScript client SDK |
 | `internal/supervisor/` | Thread-safe sandbox lifecycle state machine (`requested → provisioning → ready → executing → destroyed`) |
 | `internal/policy/` | Policy engine — enforces host path prefixes (resolves symlinks to prevent escapes), resource limits, network modes, command allowlist |
 | `internal/backend/vz/` | Apple Virtualization Framework backend (`//go:build darwin`); creates VMs, mounts virtiofs shares, dials VSOCK to guest agent |

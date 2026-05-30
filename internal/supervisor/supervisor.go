@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sandforge/sandforge/internal/policy"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/internal/policy"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 // State represents the current lifecycle phase of a sandbox.
