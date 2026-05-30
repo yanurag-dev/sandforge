@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/github/license/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/yanurag-dev/sandforge)](https://github.com/yanurag-dev/sandforge/pulls)
+[![npm](https://img.shields.io/npm/v/sandforge-sdk)](https://www.npmjs.com/package/sandforge-sdk)
+[![PyPI](https://img.shields.io/pypi/v/sandforge-sdk)](https://pypi.org/project/sandforge-sdk/)
 
 **Sandforge** is a portable, secure, and robust sandbox architecture designed to run AI coding agents (such as Codex, Claude Code, and others) in a highly restricted, isolated environment. 
 
