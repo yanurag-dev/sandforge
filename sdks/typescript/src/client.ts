@@ -1,5 +1,5 @@
 /**
- * @sandforge/sdk HTTP client
+ * sandforge-sdk HTTP client
  * Low-level HTTP wrapper for the Sandforge control plane REST API.
  */
 

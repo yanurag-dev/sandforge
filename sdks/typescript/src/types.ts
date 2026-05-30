@@ -1,5 +1,5 @@
 /**
- * @sandforge/sdk types
+ * sandforge-sdk types
  * TypeScript interfaces matching the Sandforge control plane API.
  */
 

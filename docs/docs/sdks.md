@@ -10,7 +10,7 @@ Sandforge provides native SDKs in TypeScript, Python, and Go. All three SDKs tal
 
 | SDK | Package | Min runtime |
 |-----|---------|-------------|
-| TypeScript | `@sandforge/sdk` (npm) | Node.js 18+ |
+| TypeScript | `sandforge-sdk` (npm) | Node.js 18+ |
 | Python | `sandforge-sdk` (PyPI) | Python 3.8+ |
 | Go | `github.com/yanurag-dev/sandforge/sdks/go` | Go 1.21+ |
 
@@ -21,13 +21,13 @@ Sandforge provides native SDKs in TypeScript, Python, and Go. All three SDKs tal
 ### Installation
 
 ```bash
-npm install @sandforge/sdk
+npm install sandforge-sdk
 ```
 
 ### Quick Start
 
 ```typescript
-import { Client } from "@sandforge/sdk";
+import { Client } from "sandforge-sdk";
 
 const client = new Client("http://localhost:8080");
 
@@ -261,7 +261,7 @@ interface GitStatus {
 ### Error Handling
 
 ```typescript
-import { Client, SandboxError } from "@sandforge/sdk";
+import { Client, SandboxError } from "sandforge-sdk";
 
 try {
   const sandbox = await client.create();
