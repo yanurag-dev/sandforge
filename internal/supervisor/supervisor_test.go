@@ -223,3 +223,134 @@ func TestSupervisorMountAndCopy(t *testing.T) {
 		}
 	})
 }
+
+func TestSupervisorFilesystemOps(t *testing.T) {
+	mockBackend := backend.NewMockBackend()
+	engine := &policy.Engine{
+		MaxCPU:              4,
+		MaxMemoryMb:         4096,
+		MaxDiskGb:           10,
+		AllowedNetworkModes: []string{"offline"},
+	}
+	sup, err := NewSupervisor(mockBackend, engine)
+	if err != nil {
+		t.Fatalf("Failed to create supervisor: %v", err)
+	}
+
+	id := "test-fs"
+	spec := api.SandboxSpec{CPU: 1, MemoryMb: 512, DiskGb: 1, NetworkMode: "offline"}
+
+	if err := sup.Start(id, spec); err != nil {
+		t.Fatalf("Failed to start sandbox: %v", err)
+	}
+	defer func() { _ = sup.Stop(id) }()
+
+	t.Run("WriteFile_Valid", func(t *testing.T) {
+		size, err := sup.WriteFile(id, "/tmp/hello.txt", []byte("hello"))
+		if err != nil {
+			t.Errorf("Expected WriteFile to succeed, got %v", err)
+		}
+		if size != 5 {
+			t.Errorf("Expected size 5, got %d", size)
+		}
+	})
+
+	t.Run("WriteFile_NotFound", func(t *testing.T) {
+		_, err := sup.WriteFile("nonexistent", "/tmp/hello.txt", []byte("hello"))
+		if err == nil {
+			t.Error("Expected error for nonexistent sandbox")
+		}
+	})
+
+	t.Run("WriteFile_InvalidState", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateExecuting)
+		defer instance.SetState(originalState)
+
+		_, err := sup.WriteFile(id, "/tmp/hello.txt", []byte("hello"))
+		if err == nil {
+			t.Error("Expected WriteFile to fail when state is Executing")
+		}
+	})
+
+	t.Run("ListDir_Valid", func(t *testing.T) {
+		entries, err := sup.ListDir(id, "/tmp")
+		if err != nil {
+			t.Errorf("Expected ListDir to succeed, got %v", err)
+		}
+		if entries == nil {
+			t.Error("Expected non-nil entries slice")
+		}
+	})
+
+	t.Run("ListDir_AllowedDuringExecuting", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateExecuting)
+		defer instance.SetState(originalState)
+
+		_, err := sup.ListDir(id, "/tmp")
+		if err != nil {
+			t.Errorf("Expected ListDir to succeed during Executing, got %v", err)
+		}
+	})
+
+	t.Run("ListDir_InvalidState", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateError)
+		defer instance.SetState(originalState)
+
+		_, err := sup.ListDir(id, "/tmp")
+		if err == nil {
+			t.Error("Expected ListDir to fail when state is Error")
+		}
+	})
+
+	t.Run("StatPath_Valid", func(t *testing.T) {
+		_, err := sup.StatPath(id, "/tmp/hello.txt")
+		if err != nil {
+			t.Errorf("Expected StatPath to succeed, got %v", err)
+		}
+	})
+
+	t.Run("StatPath_AllowedDuringExecuting", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateExecuting)
+		defer instance.SetState(originalState)
+
+		_, err := sup.StatPath(id, "/tmp/hello.txt")
+		if err != nil {
+			t.Errorf("Expected StatPath to succeed during Executing, got %v", err)
+		}
+	})
+
+	t.Run("StatPath_InvalidState", func(t *testing.T) {
+		sup.mu.Lock()
+		instance := sup.instances[id]
+		sup.mu.Unlock()
+
+		originalState := instance.GetState()
+		instance.SetState(StateDestroyed)
+		defer instance.SetState(originalState)
+
+		_, err := sup.StatPath(id, "/tmp/hello.txt")
+		if err == nil {
+			t.Error("Expected StatPath to fail when state is Destroyed")
+		}
+	})
+}
