@@ -12,7 +12,7 @@ Sandforge provides native SDKs in TypeScript, Python, and Go. All three SDKs tal
 |-----|---------|-------------|
 | TypeScript | `@sandforge/sdk` (npm) | Node.js 18+ |
 | Python | `sandforge-sdk` (PyPI) | Python 3.8+ |
-| Go | `github.com/yanurag-dev/sandforge/pkg/client` | Go 1.21+ |
+| Go | `github.com/yanurag-dev/sandforge/sdks/go` | Go 1.21+ |
 
 ---
 
@@ -313,7 +313,7 @@ except SandforgeException as e:
 ### Installation
 
 ```bash
-go get github.com/yanurag-dev/sandforge@latest
+go get github.com/yanurag-dev/sandforge/sdks/go@latest
 ```
 
 ### Quick Start
@@ -328,7 +328,7 @@ import (
     "time"
 
     "github.com/yanurag-dev/sandforge/pkg/api"
-    "github.com/yanurag-dev/sandforge/pkg/client"
+    "github.com/yanurag-dev/sandforge/sdks/go"
 )
 
 func main() {

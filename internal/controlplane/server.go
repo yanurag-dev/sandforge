@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sandforge/sandforge/internal/supervisor"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/internal/supervisor"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 const (
