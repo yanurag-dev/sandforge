@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Code-Hex/vz/v3"
+
 	"github.com/sandforge/sandforge/pkg/agentproto"
 	"github.com/sandforge/sandforge/pkg/api"
 )

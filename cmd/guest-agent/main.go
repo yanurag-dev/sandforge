@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/mdlayher/vsock"
+
 	"github.com/sandforge/sandforge/pkg/agentproto"
 )
 

@@ -7,6 +7,10 @@ formatters:
   enable:
     - gofmt         # Confirms standard Go formatting compliance
     - goimports     # Verifies imports are formatted and sorted correctly
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/sandforge/sandforge
 
 linters:
   default: none
