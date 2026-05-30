@@ -14,11 +14,8 @@ import (
 
 func TestNewVZBackend(t *testing.T) {
 	b := NewVZBackend()
-	if b == nil {
-		t.Fatal("NewVZBackend returned nil")
-	}
-	if len(b.sandboxes) != 0 {
-		t.Errorf("expected empty sandboxes map, got %d entries", len(b.sandboxes))
+	if b == nil || len(b.sandboxes) != 0 {
+		t.Errorf("NewVZBackend() = %v, want non-nil backend with empty sandboxes", b)
 	}
 }
 
@@ -104,5 +101,30 @@ func TestMountWorkspaceMissingSandbox(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for missing sandbox")
+	}
+}
+
+func TestFileOpsMissingSandbox(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(b *VZBackend) error
+	}{
+		{"WriteFile", func(b *VZBackend) error {
+			_, err := b.WriteFile("bad-handle", "/tmp/file.txt", []byte("hello"))
+			return err
+		}},
+		{"ListDir", func(b *VZBackend) error { _, err := b.ListDir("bad-handle", "/tmp"); return err }},
+		{"StatPath", func(b *VZBackend) error { _, err := b.StatPath("bad-handle", "/tmp/file.txt"); return err }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call(NewVZBackend())
+			if err == nil {
+				t.Fatal("expected error for missing sandbox")
+			}
+			if !strings.Contains(err.Error(), "sandbox handle not found") {
+				t.Errorf("unexpected error message: %v", err)
+			}
+		})
 	}
 }

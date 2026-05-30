@@ -280,6 +280,77 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 	return nil
 }
 
+// WriteFile writes data to guestPath inside the sandbox, creating parent dirs.
+func (v *VZBackend) WriteFile(handle string, guestPath string, data []byte) (int, error) {
+	conn, err := v.dialGuest(handle)
+	if err != nil {
+		return 0, fmt.Errorf("write: dial guest: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if err := agentproto.WriteRequest(conn, "write", agentproto.WriteFileRequest{GuestPath: guestPath, Data: data}); err != nil {
+		return 0, fmt.Errorf("write: write request: %w", err)
+	}
+
+	var resp agentproto.WriteFileResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
+		return 0, fmt.Errorf("write: read response: %w", err)
+	}
+	if resp.Error != "" {
+		return 0, fmt.Errorf("write: guest error: %s", resp.Error)
+	}
+	return resp.Size, nil
+}
+
+// ListDir returns directory entries for guestPath inside the sandbox.
+func (v *VZBackend) ListDir(handle string, guestPath string) ([]api.DirEntry, error) {
+	conn, err := v.dialGuest(handle)
+	if err != nil {
+		return nil, fmt.Errorf("list: dial guest: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if err := agentproto.WriteRequest(conn, "list", agentproto.ListRequest{GuestPath: guestPath}); err != nil {
+		return nil, fmt.Errorf("list: write request: %w", err)
+	}
+
+	var resp agentproto.ListResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
+		return nil, fmt.Errorf("list: read response: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("list: guest error: %s", resp.Error)
+	}
+
+	entries := make([]api.DirEntry, len(resp.Entries))
+	for i, e := range resp.Entries {
+		entries[i] = api.DirEntry{Name: e.Name, Size: e.Size, Mode: e.Mode, IsDir: e.IsDir, ModTime: e.ModTime}
+	}
+	return entries, nil
+}
+
+// StatPath returns metadata for guestPath inside the sandbox.
+func (v *VZBackend) StatPath(handle string, guestPath string) (api.StatInfo, error) {
+	conn, err := v.dialGuest(handle)
+	if err != nil {
+		return api.StatInfo{}, fmt.Errorf("stat: dial guest: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if err := agentproto.WriteRequest(conn, "stat", agentproto.StatRequest{GuestPath: guestPath}); err != nil {
+		return api.StatInfo{}, fmt.Errorf("stat: write request: %w", err)
+	}
+
+	var resp agentproto.StatResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
+		return api.StatInfo{}, fmt.Errorf("stat: read response: %w", err)
+	}
+	if resp.Error != "" {
+		return api.StatInfo{}, fmt.Errorf("stat: guest error: %s", resp.Error)
+	}
+	return api.StatInfo{Name: resp.Name, Size: resp.Size, Mode: resp.Mode, IsDir: resp.IsDir, ModTime: resp.ModTime}, nil
+}
+
 func (v *VZBackend) DestroySandbox(handle string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()

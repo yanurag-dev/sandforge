@@ -60,6 +60,33 @@ func (m *MockBackend) CopyOut(handle string, path string, dest string) error {
 	return nil
 }
 
+func (m *MockBackend) WriteFile(handle string, guestPath string, data []byte) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return 0, fmt.Errorf("sandbox handle not found: %s", handle)
+	}
+	return len(data), nil
+}
+
+func (m *MockBackend) ListDir(handle string, guestPath string) ([]api.DirEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return nil, fmt.Errorf("sandbox handle not found: %s", handle)
+	}
+	return []api.DirEntry{}, nil
+}
+
+func (m *MockBackend) StatPath(handle string, guestPath string) (api.StatInfo, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, exists := m.sandboxes[handle]; !exists {
+		return api.StatInfo{}, fmt.Errorf("sandbox handle not found: %s", handle)
+	}
+	return api.StatInfo{}, nil
+}
+
 func (m *MockBackend) DestroySandbox(handle string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

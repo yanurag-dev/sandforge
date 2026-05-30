@@ -16,7 +16,10 @@ import (
 	"github.com/sandforge/sandforge/pkg/api"
 )
 
-const defaultAddr = ":8080"
+const (
+	defaultAddr       = ":8080"
+	maxWriteBodyBytes = 32 * 1024 * 1024 // 32 MiB
+)
 
 type Server struct {
 	supervisor *supervisor.Supervisor
@@ -41,6 +44,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("POST /v1/sandboxes/{id}/exec", s.handleExec)
 	mux.HandleFunc("DELETE /v1/sandboxes/{id}", s.handleDestroy)
 	mux.HandleFunc("GET /v1/sandboxes/{id}", s.handleStatus)
+	mux.HandleFunc("PUT /v1/sandboxes/{id}/files", s.handleWriteFile)
+	mux.HandleFunc("GET /v1/sandboxes/{id}/files", s.handleListDir)
+	mux.HandleFunc("GET /v1/sandboxes/{id}/stat", s.handleStat)
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 
 	s.httpServer = &http.Server{
@@ -162,6 +168,65 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type writeFileRequest struct {
+	GuestPath string `json:"guest_path"`
+	Data      []byte `json:"data"`
+}
+
+type writeFileResponse struct {
+	Size int `json:"size"`
+}
+
+func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	r.Body = http.MaxBytesReader(w, r.Body, maxWriteBodyBytes)
+	var req writeFileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+	if req.GuestPath == "" {
+		writeError(w, http.StatusBadRequest, "guest_path is required")
+		return
+	}
+	size, err := s.supervisor.WriteFile(id, req.GuestPath, req.Data)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, writeFileResponse{Size: size})
+}
+
+func (s *Server) handleListDir(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	guestPath := r.URL.Query().Get("path")
+	if guestPath == "" {
+		writeError(w, http.StatusBadRequest, "path query param is required")
+		return
+	}
+	entries, err := s.supervisor.ListDir(id, guestPath)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+}
+
+func (s *Server) handleStat(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	guestPath := r.URL.Query().Get("path")
+	if guestPath == "" {
+		writeError(w, http.StatusBadRequest, "path query param is required")
+		return
+	}
+	info, err := s.supervisor.StatPath(id, guestPath)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────
