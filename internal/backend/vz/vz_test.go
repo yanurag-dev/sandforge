@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sandforge/sandforge/pkg/agentproto"
-	"github.com/sandforge/sandforge/pkg/api"
+	"github.com/yanurag-dev/sandforge/pkg/agentproto"
+	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
 func TestNewVZBackend(t *testing.T) {

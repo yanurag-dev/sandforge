@@ -1,4 +1,4 @@
-module github.com/sandforge/sandforge
+module github.com/yanurag-dev/sandforge
 
 go 1.25.7
 
