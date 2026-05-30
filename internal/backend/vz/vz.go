@@ -281,6 +281,29 @@ func (v *VZBackend) CopyOut(handle string, guestPath string, dest string) error 
 	return nil
 }
 
+// ReadFile retrieves a file from the guest and returns its contents as bytes.
+func (v *VZBackend) ReadFile(handle string, guestPath string) ([]byte, error) {
+	conn, err := v.dialGuest(handle)
+	if err != nil {
+		return nil, fmt.Errorf("readfile: dial guest: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	payload := agentproto.CopyOutRequest{GuestPath: guestPath}
+	if err := agentproto.WriteRequest(conn, "copyout", payload); err != nil {
+		return nil, fmt.Errorf("readfile: write request: %w", err)
+	}
+
+	var resp agentproto.CopyOutResponse
+	if err := agentproto.ReadResponse(conn, &resp); err != nil {
+		return nil, fmt.Errorf("readfile: read response: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("readfile: guest error: %s", resp.Error)
+	}
+	return resp.Data, nil
+}
+
 // WriteFile writes data to guestPath inside the sandbox, creating parent dirs.
 func (v *VZBackend) WriteFile(handle string, guestPath string, data []byte) (int, error) {
 	conn, err := v.dialGuest(handle)

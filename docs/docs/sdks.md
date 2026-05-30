@@ -99,6 +99,15 @@ console.log(result.stdout);
 console.log(result.stderr);
 ```
 
+#### `sandbox.files.read(path, opts?): Promise<string | Uint8Array>`
+
+Reads a file from the sandbox. Returns text by default; pass `{ format: "bytes" }` for raw bytes.
+
+```typescript
+const text = await sandbox.files.read("/workspace/output.txt");
+const raw = await sandbox.files.read("/workspace/data.bin", { format: "bytes" });
+```
+
 #### `sandbox.files.write(path, data): Promise<WriteFileResponse>`
 
 Writes a string or `Uint8Array` to a path inside the sandbox.
@@ -346,6 +355,15 @@ result = sandbox.commands.run(
 print(result.exit_code)
 print(result.stdout)
 print(result.stderr)
+```
+
+#### `sandbox.files.read(path, as_bytes=False) -> str | bytes`
+
+Reads a file from the sandbox. Returns `str` by default; pass `as_bytes=True` for raw `bytes`.
+
+```python
+text = sandbox.files.read("/workspace/output.txt")
+raw = sandbox.files.read("/workspace/data.bin", as_bytes=True)
 ```
 
 #### `sandbox.files.write(path, data) -> int`
@@ -626,5 +644,4 @@ type ExecResult struct {
 
 | Feature | Reason | Planned |
 |---------|--------|---------|
-| `files.read()` | Needs VSOCK copyout op | P1 |
 | Streaming output | Protocol redesign needed | P3 |
