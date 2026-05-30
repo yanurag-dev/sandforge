@@ -99,6 +99,91 @@ console.log(result.stdout);
 console.log(result.stderr);
 ```
 
+#### `sandbox.files.write(path, data): Promise<WriteFileResponse>`
+
+Writes a string or `Uint8Array` to a path inside the sandbox.
+
+```typescript
+await sandbox.files.write("/workspace/hello.txt", "hello world");
+await sandbox.files.write("/workspace/data.bin", new Uint8Array([1, 2, 3]));
+```
+
+#### `sandbox.files.list(path): Promise<EntryInfo[]>`
+
+Lists directory contents.
+
+```typescript
+const entries = await sandbox.files.list("/workspace");
+entries.forEach(e => console.log(e.name, e.isDir ? "DIR" : e.size));
+```
+
+#### `sandbox.files.stat(path): Promise<EntryInfo>`
+
+Returns metadata for a single path.
+
+```typescript
+const info = await sandbox.files.stat("/workspace/hello.txt");
+console.log(info.size, info.modTime);
+```
+
+#### `sandbox.files.exists(path): Promise<boolean>`
+
+Returns `true` if the path exists, `false` otherwise (never throws).
+
+```typescript
+if (await sandbox.files.exists("/workspace/package.json")) { ... }
+```
+
+#### `sandbox.files.remove(path): Promise<ExecResult>`
+
+Deletes a file or directory (`rm -rf`).
+
+```typescript
+await sandbox.files.remove("/workspace/node_modules");
+```
+
+#### `sandbox.git.clone(url, dest?, opts?): Promise<ExecResult>`
+
+Clones a repository into the sandbox.
+
+```typescript
+await sandbox.git.clone("https://github.com/org/repo.git", "/workspace", { depth: 1 });
+```
+
+#### `sandbox.git.init(cwd): Promise<ExecResult>`
+
+Initialises a new git repo at `cwd`.
+
+#### `sandbox.git.add(paths, cwd): Promise<ExecResult>`
+
+Stages files. `paths` may be a string or `string[]`.
+
+#### `sandbox.git.commit(message, cwd): Promise<ExecResult>`
+
+Creates a commit.
+
+#### `sandbox.git.push(cwd, remote?, branch?): Promise<ExecResult>`
+
+Pushes to a remote (default `origin HEAD`).
+
+#### `sandbox.git.pull(cwd, remote?): Promise<ExecResult>`
+
+Pulls from a remote.
+
+#### `sandbox.git.status(cwd): Promise<GitStatus>`
+
+Returns branch name, cleanliness, and raw porcelain output — single round-trip.
+
+```typescript
+const s = await sandbox.git.status("/workspace");
+console.log(s.branch);  // "main"
+console.log(s.clean);   // true / false
+```
+
+#### `sandbox.git.branches(cwd): Promise<string[]>`
+
+Lists all local branches.
+
 #### `sandbox.info(): Promise<SandboxInfo>`
 
 Returns the current lifecycle state (`provisioning`, `ready`, `executing`, `destroyed`).
@@ -143,6 +228,24 @@ interface ExecResult {
 interface SandboxInfo {
   id: string;
   state: string;
+}
+
+interface EntryInfo {
+  name: string;
+  path: string;
+  size: number;
+  isDir: boolean;
+  modTime: string;
+}
+
+interface WriteFileResponse {
+  size: number;
+}
+
+interface GitStatus {
+  branch: string;
+  clean: boolean;
+  stdout: string;
 }
 ```
 
@@ -245,6 +348,92 @@ print(result.stdout)
 print(result.stderr)
 ```
 
+#### `sandbox.files.write(path, data) -> int`
+
+Writes a string or `bytes` to a path inside the sandbox. Returns bytes written.
+
+```python
+sandbox.files.write("/workspace/hello.txt", "hello world")
+sandbox.files.write("/workspace/data.bin", b"\x01\x02\x03")
+```
+
+#### `sandbox.files.list(path) -> List[EntryInfo]`
+
+Lists directory contents.
+
+```python
+for entry in sandbox.files.list("/workspace"):
+    print(entry.name, "DIR" if entry.is_dir else entry.size)
+```
+
+#### `sandbox.files.stat(path) -> EntryInfo`
+
+Returns metadata for a single path.
+
+```python
+info = sandbox.files.stat("/workspace/hello.txt")
+print(info.size, info.mod_time)
+```
+
+#### `sandbox.files.exists(path) -> bool`
+
+Returns `True` if the path exists, `False` otherwise (never raises).
+
+```python
+if sandbox.files.exists("/workspace/requirements.txt"):
+    ...
+```
+
+#### `sandbox.files.remove(path) -> ExecResult`
+
+Deletes a file or directory (`rm -rf`).
+
+```python
+sandbox.files.remove("/workspace/__pycache__")
+```
+
+#### `sandbox.git.clone(url, dest=".", depth=None) -> ExecResult`
+
+Clones a repository into the sandbox.
+
+```python
+sandbox.git.clone("https://github.com/org/repo.git", "/workspace", depth=1)
+```
+
+#### `sandbox.git.init(cwd) -> ExecResult`
+
+Initialises a new git repo at `cwd`.
+
+#### `sandbox.git.add(paths, cwd) -> ExecResult`
+
+Stages files. `paths` may be a string or list of strings.
+
+#### `sandbox.git.commit(message, cwd) -> ExecResult`
+
+Creates a commit.
+
+#### `sandbox.git.push(cwd, remote="origin", branch="HEAD") -> ExecResult`
+
+Pushes to a remote.
+
+#### `sandbox.git.pull(cwd, remote="origin") -> ExecResult`
+
+Pulls from a remote.
+
+#### `sandbox.git.status(cwd) -> GitStatus`
+
+Returns branch name, cleanliness, and raw porcelain output — single round-trip.
+
+```python
+s = sandbox.git.status("/workspace")
+print(s.branch)  # "main"
+print(s.clean)   # True / False
+```
+
+#### `sandbox.git.branches(cwd) -> List[str]`
+
+Lists all local branches.
+
 #### `sandbox.info() -> SandboxInfo`
 
 Returns the current lifecycle state.
@@ -285,6 +474,20 @@ class ExecResult:
 class SandboxInfo:
     id: str
     state: str
+
+@dataclass
+class EntryInfo:
+    name: str
+    path: str
+    size: int
+    is_dir: bool
+    mod_time: str
+
+@dataclass
+class GitStatus:
+    branch: str
+    clean: bool
+    stdout: str
 ```
 
 ### Error Handling
@@ -423,8 +626,5 @@ type ExecResult struct {
 
 | Feature | Reason | Planned |
 |---------|--------|---------|
-| `files.write()` | Needs new VSOCK op | P1 |
-| `files.list()` | Needs new VSOCK op | P1 |
-| `files.read()` | Needs VSOCK copyout | P1 |
+| `files.read()` | Needs VSOCK copyout op | P1 |
 | Streaming output | Protocol redesign needed | P3 |
-| Git helpers | Deferred | P2 |

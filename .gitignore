@@ -23,6 +23,13 @@ coverage.txt
 # OS
 .DS_Store
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
 
 # Guest VM images (built locally via scripts/build-images.sh)
 images/

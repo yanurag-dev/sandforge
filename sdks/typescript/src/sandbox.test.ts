@@ -9,7 +9,7 @@ import * as http from "node:http";
 import { Client, Sandbox } from "./sandbox";
 import { HTTPClient } from "./client";
 import { SandboxError } from "./types";
-import type { ExecResult, SandboxInfo } from "./types";
+import type { ExecResult, SandboxInfo, EntryInfo } from "./types";
 
 // ---------------------------------------------------------------------------
 // Minimal mock HTTP server
@@ -161,6 +161,199 @@ describe("sandbox.info()", () => {
     const info = await sandbox.info();
     assert.equal(info.id, fixedID);
     assert.equal(info.state, "ready");
+  });
+});
+
+describe("sandbox.files.write()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-fswrite";
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "PUT" && req.url === `/v1/sandboxes/${fixedID}/files`) {
+        const parsed = JSON.parse(req.body) as { guest_path: string; data: number[] };
+        return { status: 200, body: JSON.stringify({ size: parsed.data.length }) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("PUTs to /v1/sandboxes/{id}/files and returns write response", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const resp = await sandbox.files.write("/tmp/hello.txt", "hello");
+    assert.equal(resp.size, 5);
+  });
+});
+
+describe("sandbox.files.list()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-fslist";
+  const fakeEntry: EntryInfo = {
+    name: "a.txt", path: "/tmp/a.txt", size: 3, isDir: false, modTime: "2025-01-01T00:00:00Z",
+  };
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "GET" && req.url?.startsWith(`/v1/sandboxes/${fixedID}/files`)) {
+        return { status: 200, body: JSON.stringify({ entries: [fakeEntry] }) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("GETs /v1/sandboxes/{id}/files?path=... and returns entries", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const entries = await sandbox.files.list("/tmp");
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].name, "a.txt");
+  });
+});
+
+describe("sandbox.files.stat()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-fsstat";
+  const fakeEntry: EntryInfo = {
+    name: "a.txt", path: "/tmp/a.txt", size: 3, isDir: false, modTime: "2025-01-01T00:00:00Z",
+  };
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "GET" && req.url?.startsWith(`/v1/sandboxes/${fixedID}/stat`)) {
+        return { status: 200, body: JSON.stringify(fakeEntry) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("GETs /v1/sandboxes/{id}/stat?path=... and returns EntryInfo", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const info = await sandbox.files.stat("/tmp/a.txt");
+    assert.equal(info.name, "a.txt");
+    assert.equal(info.size, 3);
+    assert.equal(info.isDir, false);
+  });
+});
+
+describe("sandbox.files.exists()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-fsexists";
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "GET" && req.url?.includes("existing")) {
+        const entry: EntryInfo = { name: "x", path: "/x", size: 1, isDir: false, modTime: "" };
+        return { status: 200, body: JSON.stringify(entry) };
+      }
+      if (req.method === "GET" && req.url?.includes("missing")) {
+        return { status: 404, body: JSON.stringify({ error: "not found" }) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("returns true when stat succeeds", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const result = await sandbox.files.exists("/existing");
+    assert.equal(result, true);
+  });
+
+  it("returns false when stat throws", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const result = await sandbox.files.exists("/missing");
+    assert.equal(result, false);
+  });
+});
+
+describe("sandbox.git.clone()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-gitclone";
+  let lastBody: string = "";
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "POST" && req.url === `/v1/sandboxes/${fixedID}/exec`) {
+        lastBody = req.body;
+        const result: ExecResult = { exitCode: 0, stdout: "", stderr: "" };
+        return { status: 200, body: JSON.stringify(result) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("runs git clone via exec endpoint", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const result = await sandbox.git.clone("https://github.com/example/repo.git");
+    assert.equal(result.exitCode, 0);
+    const parsed = JSON.parse(lastBody) as { command: string[] };
+    assert.equal(parsed.command[0], "git");
+    assert.equal(parsed.command[1], "clone");
+    assert.ok(parsed.command.includes("https://github.com/example/repo.git"));
+  });
+});
+
+describe("sandbox.git.status()", () => {
+  let server: http.Server;
+  let baseURL: string;
+  const fixedID = "sbx-gitstatus";
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.method === "POST" && req.url === "/v1/sandboxes") {
+        return { status: 200, body: JSON.stringify({ id: fixedID }) };
+      }
+      if (req.method === "POST" && req.url === `/v1/sandboxes/${fixedID}/exec`) {
+        // Single call: git status --branch --porcelain
+        const result: ExecResult = { exitCode: 0, stdout: "## main...origin/main\n", stderr: "" };
+        return { status: 200, body: JSON.stringify(result) };
+      }
+      return { status: 404, body: JSON.stringify({ error: "not found" }) };
+    }));
+  });
+
+  after(() => { server.close(); });
+
+  it("returns GitStatus with branch and clean flag from a single exec call", async () => {
+    const client = new Client(baseURL);
+    const sandbox = await client.create();
+    const status = await sandbox.git.status("/workspace");
+    assert.equal(status.branch, "main");
+    assert.equal(status.clean, true);
   });
 });
 

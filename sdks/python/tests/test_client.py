@@ -164,5 +164,134 @@ class TestSandboxInfo(unittest.TestCase):
         self.assertEqual(info.state, "ready")
 
 
+class TestFilesAPI(unittest.TestCase):
+    """Tests for sandbox.files.*"""
+
+    def _make_sandbox(self):
+        client = Client("http://localhost:8080")
+        client.session = MagicMock()
+        return SandboxHandle(client, "sbx-fs01"), client
+
+    def _mock_put(self, client, body):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = body
+        resp.json.return_value = __import__("json").loads(body)
+        client.session.put = MagicMock(return_value=resp)
+
+    def _mock_get(self, client, body):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = body
+        resp.json.return_value = __import__("json").loads(body)
+        client.session.get = MagicMock(return_value=resp)
+
+    def test_write_puts_to_files_endpoint(self):
+        sandbox, client = self._make_sandbox()
+        self._mock_put(client, '{"size": 5}')
+        n = sandbox.files.write("/tmp/hello.txt", "hello")
+        url = client.session.put.call_args[0][0]
+        self.assertIn(f"/v1/sandboxes/{sandbox.id}/files", url)
+        self.assertEqual(n, 5)
+
+    def test_list_returns_entry_infos(self):
+        from sandforge.types import EntryInfo
+        sandbox, client = self._make_sandbox()
+        payload = '{"entries": [{"name": "a.txt", "path": "/tmp/a.txt", "size": 3, "isDir": false, "modTime": "2025-01-01T00:00:00Z"}]}'
+        self._mock_get(client, payload)
+        entries = sandbox.files.list("/tmp")
+        self.assertEqual(len(entries), 1)
+        self.assertIsInstance(entries[0], EntryInfo)
+        self.assertEqual(entries[0].name, "a.txt")
+
+    def test_stat_returns_entry_info(self):
+        from sandforge.types import EntryInfo
+        sandbox, client = self._make_sandbox()
+        payload = '{"name": "a.txt", "path": "/tmp/a.txt", "size": 3, "isDir": false, "modTime": "2025-01-01T00:00:00Z"}'
+        self._mock_get(client, payload)
+        info = sandbox.files.stat("/tmp/a.txt")
+        self.assertIsInstance(info, EntryInfo)
+        self.assertEqual(info.size, 3)
+
+    def test_exists_true_on_success(self):
+        sandbox, client = self._make_sandbox()
+        payload = '{"name": "a.txt", "path": "/tmp/a.txt", "size": 3, "isDir": false, "modTime": "2025-01-01T00:00:00Z"}'
+        self._mock_get(client, payload)
+        self.assertTrue(sandbox.files.exists("/tmp/a.txt"))
+
+    def test_exists_false_on_error(self):
+        sandbox, client = self._make_sandbox()
+        resp = MagicMock()
+        resp.status_code = 422
+        resp.text = '{"error": "not found"}'
+        resp.json.return_value = {"error": "not found"}
+        client.session.get = MagicMock(return_value=resp)
+        self.assertFalse(sandbox.files.exists("/tmp/missing.txt"))
+
+
+class TestGitAPI(unittest.TestCase):
+    """Tests for sandbox.git.*"""
+
+    def _make_sandbox(self):
+        client = Client("http://localhost:8080")
+        client.session = MagicMock()
+        return SandboxHandle(client, "sbx-git01"), client
+
+    def _mock_exec(self, client, stdout="", exit_code=0):
+        resp = MagicMock()
+        resp.status_code = 200
+        body = __import__("json").dumps({"exit_code": exit_code, "stdout": stdout, "stderr": ""})
+        resp.text = body
+        resp.json.return_value = __import__("json").loads(body)
+        client.session.post = MagicMock(return_value=resp)
+
+    def test_clone_runs_git_clone(self):
+        sandbox, client = self._make_sandbox()
+        self._mock_exec(client)
+        sandbox.git.clone("https://github.com/example/repo.git")
+        payload = client.session.post.call_args[1]["json"]
+        self.assertEqual(payload["command"][0], "git")
+        self.assertIn("clone", payload["command"])
+
+    def test_init_runs_git_init(self):
+        sandbox, client = self._make_sandbox()
+        self._mock_exec(client)
+        sandbox.git.init("/workspace")
+        payload = client.session.post.call_args[1]["json"]
+        self.assertEqual(payload["command"], ["git", "init"])
+        self.assertEqual(payload["cwd"], "/workspace")
+
+    def test_status_returns_git_status(self):
+        from sandforge.types import GitStatus
+        sandbox, client = self._make_sandbox()
+        call_count = [0]
+        responses = [
+            {"exit_code": 0, "stdout": "main\n", "stderr": ""},
+            {"exit_code": 0, "stdout": "", "stderr": ""},
+        ]
+        def side_effect(url, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 200
+            body = __import__("json").dumps(responses[call_count[0]])
+            resp.text = body
+            resp.json.return_value = responses[call_count[0]]
+            call_count[0] += 1
+            return resp
+        client.session.post.side_effect = side_effect
+
+        status = sandbox.git.status("/workspace")
+        self.assertIsInstance(status, GitStatus)
+        self.assertEqual(status.branch, "main")
+        self.assertTrue(status.clean)
+
+    def test_branches_parses_output(self):
+        sandbox, client = self._make_sandbox()
+        self._mock_exec(client, stdout="* main\n  dev\n  feature/x\n")
+        result = sandbox.git.branches("/workspace")
+        self.assertIn("main", result)
+        self.assertIn("dev", result)
+        self.assertIn("feature/x", result)
+
+
 if __name__ == "__main__":
     unittest.main()

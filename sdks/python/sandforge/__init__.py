@@ -23,7 +23,7 @@ Example:
     sandbox.kill()
 """
 
-from .client import Client, SandboxHandle, CommandsAPI, FilesAPI
+from .client import Client, SandboxHandle, CommandsAPI, FilesAPI, GitAPI
 
 # Alias for cleaner ergonomics
 Sandbox = SandboxHandle
@@ -33,6 +33,8 @@ from .types import (
     ExecRequest,
     ExecResult,
     SandboxInfo,
+    EntryInfo,
+    GitStatus,
     SandforgeException,
     SandboxNotFoundError,
     ExecutionError,
@@ -48,11 +50,14 @@ __all__ = [
     "SandboxHandle",
     "CommandsAPI",
     "FilesAPI",
+    "GitAPI",
     "SandboxSpec",
     "WorkspaceMount",
     "ExecRequest",
     "ExecResult",
     "SandboxInfo",
+    "EntryInfo",
+    "GitStatus",
     "SandforgeException",
     "SandboxNotFoundError",
     "ExecutionError",

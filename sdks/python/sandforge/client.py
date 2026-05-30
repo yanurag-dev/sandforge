@@ -10,6 +10,8 @@ from .types import (
     ExecRequest,
     ExecResult,
     SandboxInfo,
+    EntryInfo,
+    GitStatus,
     SandforgeException,
     NetworkError,
     SandboxNotFoundError,
@@ -162,6 +164,10 @@ class Client:
                 resp = self.session.post(
                     url, json=body, headers=headers, timeout=self.timeout
                 )
+            elif method == "PUT":
+                resp = self.session.put(
+                    url, json=body, headers=headers, timeout=self.timeout
+                )
             elif method == "DELETE":
                 resp = self.session.delete(url, headers=headers, timeout=self.timeout)
             else:
@@ -237,6 +243,7 @@ class SandboxHandle:
         self._client = client
         self.commands = CommandsAPI(self)
         self.files = FilesAPI(self)
+        self.git = GitAPI(self)
 
     def kill(self) -> None:
         """Destroy the sandbox.
@@ -304,31 +311,122 @@ class CommandsAPI:
 
 
 class FilesAPI:
-    """Files API for reading files from a sandbox."""
+    """Files API for filesystem operations inside a sandbox."""
 
-    def __init__(self, sandbox: SandboxHandle):
-        """Initialize the files API.
-
-        Args:
-            sandbox: The parent SandboxHandle.
-        """
+    def __init__(self, sandbox: "SandboxHandle"):
         self._sandbox = sandbox
 
-    def read(self, path: str) -> str:
-        """Read a file from the sandbox.
-
-        This method requires VSOCK copyout support from the guest agent.
-        Currently raises NotImplementedError.
+    def write(self, path: str, data) -> int:
+        """Write data to a file inside the sandbox.
 
         Args:
-            path: Path to the file in the sandbox.
+            path: Destination path inside the sandbox.
+            data: str or bytes to write.
 
         Returns:
-            str: File contents.
-
-        Raises:
-            NotImplementedError: VSOCK copyout is not yet implemented.
+            int: Number of bytes written.
         """
-        raise NotImplementedError(
-            "files.read() requires VSOCK copyout support (coming soon)"
+        if isinstance(data, str):
+            data = data.encode()
+        payload = {"guest_path": path, "data": list(data)}
+        resp = self._sandbox._client._do(
+            "PUT", f"/v1/sandboxes/{self._sandbox.id}/files", payload
         )
+        return resp.get("size", 0)
+
+    def list(self, path: str) -> list:
+        """List directory contents inside the sandbox.
+
+        Args:
+            path: Directory path inside the sandbox.
+
+        Returns:
+            List[EntryInfo]: Directory entries.
+        """
+        resp = self._sandbox._client._do(
+            "GET", f"/v1/sandboxes/{self._sandbox.id}/files?path={path}", None
+        )
+        return [EntryInfo.from_dict(e) for e in resp.get("entries", [])]
+
+    def stat(self, path: str) -> EntryInfo:
+        """Return metadata for a path inside the sandbox.
+
+        Args:
+            path: Path inside the sandbox.
+
+        Returns:
+            EntryInfo: Metadata for the path.
+        """
+        resp = self._sandbox._client._do(
+            "GET", f"/v1/sandboxes/{self._sandbox.id}/stat?path={path}", None
+        )
+        return EntryInfo.from_dict(resp)
+
+    def exists(self, path: str) -> bool:
+        """Return True if the path exists inside the sandbox."""
+        try:
+            self.stat(path)
+            return True
+        except SandforgeException:
+            return False
+
+    def remove(self, path: str) -> ExecResult:
+        """Delete a file or directory inside the sandbox via `rm -rf`."""
+        return self._sandbox._client.exec(
+            self._sandbox.id,
+            ExecRequest(command=["rm", "-rf", path], cwd="/", timeout_sec=30),
+        )
+
+
+class GitAPI:
+    """Git API — shell facade over `commands.run()` for common git operations."""
+
+    def __init__(self, sandbox: "SandboxHandle"):
+        self._sandbox = sandbox
+
+    def _exec(self, args: list, cwd: str = "/") -> ExecResult:
+        return self._sandbox._client.exec(
+            self._sandbox.id,
+            ExecRequest(command=["git"] + args, cwd=cwd, timeout_sec=120),
+        )
+
+    def clone(self, url: str, dest: str = ".", depth: Optional[int] = None) -> ExecResult:
+        args = ["clone"]
+        if depth:
+            args += ["--depth", str(depth)]
+        args += [url, dest]
+        return self._exec(args)
+
+    def init(self, cwd: str) -> ExecResult:
+        return self._exec(["init"], cwd)
+
+    def add(self, paths, cwd: str) -> ExecResult:
+        if isinstance(paths, str):
+            paths = [paths]
+        return self._exec(["add"] + paths, cwd)
+
+    def commit(self, message: str, cwd: str) -> ExecResult:
+        return self._exec(["commit", "-m", message], cwd)
+
+    def push(self, cwd: str, remote: str = "origin", branch: str = "HEAD") -> ExecResult:
+        return self._exec(["push", remote, branch], cwd)
+
+    def pull(self, cwd: str, remote: str = "origin") -> ExecResult:
+        return self._exec(["pull", remote], cwd)
+
+    def status(self, cwd: str) -> GitStatus:
+        branch_result = self._exec(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
+        status_result = self._exec(["status", "--porcelain"], cwd)
+        return GitStatus(
+            branch=branch_result.stdout.strip(),
+            clean=status_result.stdout.strip() == "",
+            stdout=status_result.stdout,
+        )
+
+    def branches(self, cwd: str) -> list:
+        result = self._exec(["branch", "--list"], cwd)
+        return [
+            b.lstrip("* ").strip()
+            for b in result.stdout.splitlines()
+            if b.strip()
+        ]
