@@ -52,6 +52,54 @@ For a comprehensive architectural specification, read [ARCHITECTURE.md](ARCHITEC
 
 ---
 
+## 📦 Client SDKs
+
+Sandforge ships native SDKs for TypeScript, Python, and Go.
+
+| Language | Package | Install |
+|----------|---------|---------|
+| TypeScript / Node.js | [`sandforge-sdk`](https://www.npmjs.com/package/sandforge-sdk) | `npm install sandforge-sdk` |
+| Python | [`sandforge-sdk`](https://pypi.org/project/sandforge-sdk/) | `pip install sandforge-sdk` |
+| Go | `github.com/yanurag-dev/sandforge/sdks/go` | `go get github.com/yanurag-dev/sandforge/sdks/go@latest` |
+
+### TypeScript Quick Start
+
+```typescript
+import { Client } from "sandforge-sdk";
+
+const client = new Client("http://localhost:8080");
+const sandbox = await client.create({ cpu: 2, memoryMb: 512 });
+
+const result = await sandbox.commands.run({ command: ["echo", "hello"] });
+console.log(result.stdout); // "hello\n"
+
+await sandbox.files.write("/workspace/hello.txt", "hello world");
+const text = await sandbox.files.read("/workspace/hello.txt");
+
+await sandbox.git.clone("https://github.com/org/repo.git", "/workspace");
+await sandbox.kill();
+```
+
+### Python Quick Start
+
+```python
+from sandforge import Client
+
+client = Client("http://localhost:8080")
+sandbox = client.create_sandbox()
+
+result = sandbox.commands.run(["echo", "hello"])
+print(result.stdout)  # "hello\n"
+
+sandbox.files.write("/workspace/hello.txt", "hello world")
+text = sandbox.files.read("/workspace/hello.txt")
+
+sandbox.git.clone("https://github.com/org/repo.git", "/workspace")
+sandbox.kill()
+```
+
+---
+
 ## 📂 Project Anatomy
 
 ```text

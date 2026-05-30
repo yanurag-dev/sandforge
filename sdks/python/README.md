@@ -4,13 +4,11 @@ The Sandforge Python SDK provides a client library for interacting with the Sand
 
 ## Installation
 
-Install the SDK from the repository:
-
 ```bash
-pip install -e .
+pip install sandforge-sdk
 ```
 
-Or with development dependencies:
+For development (from source):
 
 ```bash
 pip install -e ".[dev]"
