@@ -72,6 +72,25 @@ type Supervisor struct {
 	policy  *policy.Engine
 }
 
+// getInstance returns the handle and current state for a sandbox by ID.
+// Returns an error if the sandbox does not exist.
+func (s *Supervisor) getInstance(id string) (handle string, state State, err error) {
+	s.mu.RLock()
+	instance, exists := s.instances[id]
+	s.mu.RUnlock()
+
+	if !exists {
+		return "", "", errors.New("sandbox not found")
+	}
+
+	instance.mu.RLock()
+	handle = instance.Handle
+	state = instance.State
+	instance.mu.RUnlock()
+
+	return handle, state, nil
+}
+
 func NewSupervisor(backend api.SandboxBackend, engine *policy.Engine) (*Supervisor, error) {
 	if backend == nil {
 		return nil, fmt.Errorf("NewSupervisor: backend is nil")
@@ -262,110 +281,73 @@ func (s *Supervisor) MountWorkspace(id string, mount api.WorkspaceMount) error {
 
 // CopyOut retrieves a file or directory from the sandbox.
 func (s *Supervisor) CopyOut(id string, path string, dest string) error {
-	// 1. Find the instance
-	s.mu.RLock()
-	instance, exists := s.instances[id]
-	s.mu.RUnlock()
-
-	if !exists {
-		return errors.New("sandbox not found")
-	}
-
-	// 2. Policy check for destination host path
+	// 1. Policy check for destination host path
 	if err := s.policy.EvaluateHostPath(dest); err != nil {
 		return fmt.Errorf("policy denied copy out destination: %w", err)
 	}
 
-	// 3. Validate state
-	instance.mu.RLock()
-	handle := instance.Handle
-	state := instance.State
-	instance.mu.RUnlock()
+	// 2. Find instance and validate state
+	handle, state, err := s.getInstance(id)
+	if err != nil {
+		return err
+	}
 
 	// We allow CopyOut if it's Ready or Executing (e.g. streaming logs)
 	if state != StateReady && state != StateExecuting {
 		return fmt.Errorf("sandbox is in state %s, must be %s or %s to copy out", state, StateReady, StateExecuting)
 	}
 
-	// 4. Call backend
+	// 3. Call backend
 	return s.backend.CopyOut(handle, path, dest)
 }
 
 // WriteFile writes data to guestPath inside the sandbox, creating parent directories.
 // Only allowed when the sandbox is Ready — writing during execution risks a file race.
 func (s *Supervisor) WriteFile(id string, guestPath string, data []byte) (int, error) {
-	// 1. Find the instance
-	s.mu.RLock()
-	instance, exists := s.instances[id]
-	s.mu.RUnlock()
-
-	if !exists {
-		return 0, errors.New("sandbox not found")
+	// 1. Find instance and validate state
+	handle, state, err := s.getInstance(id)
+	if err != nil {
+		return 0, err
 	}
-
-	// 2. Validate state
-	instance.mu.RLock()
-	handle := instance.Handle
-	state := instance.State
-	instance.mu.RUnlock()
 
 	if state != StateReady {
 		return 0, fmt.Errorf("sandbox is in state %s, must be %s to write", state, StateReady)
 	}
 
-	// 3. Call backend
+	// 2. Call backend
 	return s.backend.WriteFile(handle, guestPath, data)
 }
 
 // ListDir returns directory entries for guestPath inside the sandbox.
-// ListDir returns directory entries for guestPath inside the sandbox.
 // Allowed during Ready or Executing — listing is read-only and safe concurrently.
 func (s *Supervisor) ListDir(id string, guestPath string) ([]api.DirEntry, error) {
-	// 1. Find the instance
-	s.mu.RLock()
-	instance, exists := s.instances[id]
-	s.mu.RUnlock()
-
-	if !exists {
-		return nil, errors.New("sandbox not found")
+	// 1. Find instance and validate state
+	handle, state, err := s.getInstance(id)
+	if err != nil {
+		return nil, err
 	}
-
-	// 2. Validate state
-	instance.mu.RLock()
-	handle := instance.Handle
-	state := instance.State
-	instance.mu.RUnlock()
 
 	if state != StateReady && state != StateExecuting {
 		return nil, fmt.Errorf("sandbox is in state %s, must be %s or %s to list", state, StateReady, StateExecuting)
 	}
 
-	// 3. Call backend
+	// 2. Call backend
 	return s.backend.ListDir(handle, guestPath)
 }
 
 // StatPath returns metadata for guestPath inside the sandbox.
 // Allowed during Ready or Executing — stat is read-only and safe concurrently.
 func (s *Supervisor) StatPath(id string, guestPath string) (api.StatInfo, error) {
-	// 1. Find the instance
-	s.mu.RLock()
-	instance, exists := s.instances[id]
-	s.mu.RUnlock()
-
-	if !exists {
-		return api.StatInfo{}, errors.New("sandbox not found")
+	// 1. Find instance and validate state
+	handle, state, err := s.getInstance(id)
+	if err != nil {
+		return api.StatInfo{}, err
 	}
-
-	// 2. Validate state
-	instance.mu.RLock()
-	handle := instance.Handle
-	state := instance.State
-	instance.mu.RUnlock()
 
 	if state != StateReady && state != StateExecuting {
 		return api.StatInfo{}, fmt.Errorf("sandbox is in state %s, must be %s or %s to stat", state, StateReady, StateExecuting)
 	}
 
-	// 3. Call backend
+	// 2. Call backend
 	return s.backend.StatPath(handle, guestPath)
 }
