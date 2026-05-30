@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sandforge-sdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python SDK for Sandforge hypervisor sandbox platform"
 authors = [{ name = "Anurag Yadav", email = "yadavanurag1310@gmail.com" }]
 license = { text = "Apache-2.0" }
