@@ -9,7 +9,7 @@ formatters:
     - goimports     # Verifies imports are formatted and sorted correctly
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck      # Checks that returned errors are handled
     - govet         # Standard compiler static analysis
