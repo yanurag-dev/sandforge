@@ -1,4 +1,4 @@
-.PHONY: build agent run test images clean lint typecheck fmt check
+.PHONY: build agent run test images clean lint typecheck fmt check hooks-install
 
 BIN       := bin/sandforge
 AGENT_BIN := bin/sandforge-agent
@@ -37,3 +37,7 @@ fmt:
 	go fmt ./...
 
 check: fmt lint typecheck test build
+
+hooks-install:
+	chmod +x scripts/hooks/pre-commit
+	git config core.hooksPath scripts/hooks
