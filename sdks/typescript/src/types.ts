@@ -7,13 +7,13 @@
  * SandboxSpec defines the configuration for a new sandbox.
  */
 export interface SandboxSpec {
-  backend?: string; // "linux-kvm", "linux-firecracker", "macos-vz"
+  backend?: "linux-kvm" | "linux-firecracker" | "macos-vz";
   cpu?: number;
   memoryMb?: number;
   diskGb?: number;
   timeoutSec?: number;
-  networkMode?: string; // "offline", "fetch", "full"
-  taskIsolation?: string; // "container", "process"
+  networkMode?: "offline" | "fetch" | "full";
+  taskIsolation?: "container" | "process";
   mounts?: WorkspaceMount[];
 }
 

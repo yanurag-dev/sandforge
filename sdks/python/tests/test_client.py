@@ -1,8 +1,6 @@
 """Unit tests for the Sandforge Python SDK client."""
 
 import unittest
-from unittest.mock import MagicMock
-
 import sys
 import os
 from unittest.mock import MagicMock

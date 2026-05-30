@@ -16,7 +16,7 @@ export class HTTPClient {
   constructor(baseURL: string, fetchImpl?: typeof globalThis.fetch, timeoutMs = 60000) {
     this.baseURL = baseURL;
     // Use provided fetch implementation or fall back to global (Node 18+)
-    this.fetch = fetchImpl || globalThis.fetch;
+    this.fetch = fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.timeoutMs = timeoutMs;
   }
 
@@ -47,6 +47,11 @@ export class HTTPClient {
     try {
       response = await this.fetch(fullURL, options);
     } catch (err) {
+      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        throw new Error(
+          `request to ${fullURL} timed out after ${this.timeoutMs}ms`,
+        );
+      }
       throw new Error(
         `failed to connect to ${fullURL}: ${
           err instanceof Error ? err.message : String(err)

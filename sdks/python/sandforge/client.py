@@ -36,6 +36,17 @@ class Client:
         self.timeout = timeout
         self.session = requests.Session()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session.close()
+        return False
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self.session.close()
+
     def create_sandbox(self, spec: Optional[SandboxSpec] = None) -> "SandboxHandle":
         """Create a new sandbox.
 
@@ -58,13 +69,8 @@ class Client:
             "spec": spec.to_dict(),
         }
 
-        try:
-            response = self._do("POST", "/v1/sandboxes", payload)
-            return SandboxHandle(self, response.get("id", sandbox_id))
-        except NetworkError:
-            raise
-        except SandforgeException:
-            raise
+        response = self._do("POST", "/v1/sandboxes", payload)
+        return SandboxHandle(self, response.get("id", sandbox_id))
 
     def exec(self, sandbox_id: str, request: ExecRequest) -> ExecResult:
         """Execute a command in a sandbox.
@@ -81,13 +87,8 @@ class Client:
             SandforgeException: If execution fails.
         """
         payload = request.to_dict()
-        try:
-            response = self._do("POST", f"/v1/sandboxes/{sandbox_id}/exec", payload)
-            return ExecResult.from_dict(response)
-        except NetworkError:
-            raise
-        except SandforgeException:
-            raise
+        response = self._do("POST", f"/v1/sandboxes/{sandbox_id}/exec", payload)
+        return ExecResult.from_dict(response)
 
     def get_status(self, sandbox_id: str) -> str:
         """Get the current state of a sandbox.
@@ -102,11 +103,8 @@ class Client:
             NetworkError: If communication with the control plane fails.
             SandboxNotFoundError: If the sandbox is not found.
         """
-        try:
-            response = self._do("GET", f"/v1/sandboxes/{sandbox_id}", None)
-            return response.get("state", "unknown")
-        except NetworkError:
-            raise
+        response = self._do("GET", f"/v1/sandboxes/{sandbox_id}", None)
+        return response.get("state", "unknown")
 
     def get_info(self, sandbox_id: str) -> SandboxInfo:
         """Get detailed information about a sandbox.
@@ -121,11 +119,8 @@ class Client:
             NetworkError: If communication with the control plane fails.
             SandboxNotFoundError: If the sandbox is not found.
         """
-        try:
-            response = self._do("GET", f"/v1/sandboxes/{sandbox_id}", None)
-            return SandboxInfo.from_dict(response)
-        except NetworkError:
-            raise
+        response = self._do("GET", f"/v1/sandboxes/{sandbox_id}", None)
+        return SandboxInfo.from_dict(response)
 
     def destroy(self, sandbox_id: str) -> None:
         """Destroy a sandbox.
@@ -137,12 +132,7 @@ class Client:
             NetworkError: If communication with the control plane fails.
             SandforgeException: If destruction fails.
         """
-        try:
-            self._do("DELETE", f"/v1/sandboxes/{sandbox_id}", None)
-        except NetworkError:
-            raise
-        except SandforgeException:
-            raise
+        self._do("DELETE", f"/v1/sandboxes/{sandbox_id}", None)
 
     # ─── Private Methods ───────────────────────────────────────────────────────
 

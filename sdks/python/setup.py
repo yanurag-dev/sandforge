@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="sandforge",
+    name="sandforge-sdk",
     version="0.1.0",
     author="Sandforge Contributors",
     description="Python SDK for Sandforge hypervisor sandbox platform",
@@ -27,7 +27,7 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "requests>=2.25.0",
+        "requests>=2.33.0",
     ],
     extras_require={
         "dev": [

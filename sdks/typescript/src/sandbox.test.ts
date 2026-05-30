@@ -6,7 +6,9 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import * as http from "node:http";
-import { Client } from "./sandbox";
+import { Client, Sandbox } from "./sandbox";
+import { HTTPClient } from "./client";
+import { SandboxError } from "./types";
 import type { ExecResult, SandboxInfo } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -159,5 +161,50 @@ describe("sandbox.info()", () => {
     const info = await sandbox.info();
     assert.equal(info.id, fixedID);
     assert.equal(info.state, "ready");
+  });
+});
+
+describe("error handling", () => {
+  let server: http.Server;
+  let baseURL: string;
+
+  before(async () => {
+    ({ server, baseURL } = await startMockServer((req) => {
+      if (req.url === "/v1/sandboxes" && req.method === "POST") {
+        return { status: 500, body: JSON.stringify({ error: "internal server error" }) };
+      }
+      if (req.url?.startsWith("/v1/sandboxes/") && req.method === "GET") {
+        return { status: 404, body: JSON.stringify({ error: "not found" }) };
+      }
+      return { status: 500, body: JSON.stringify({ error: "unexpected" }) };
+    }));
+  });
+
+  after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it("create() throws SandboxError on 500", async () => {
+    const client = new Client(baseURL);
+    await assert.rejects(
+      () => client.create(),
+      (err: unknown) => {
+        assert.ok(err instanceof SandboxError);
+        assert.strictEqual(err.statusCode, 500);
+        return true;
+      },
+    );
+  });
+
+  it("info() throws SandboxError on 404", async () => {
+    const sandbox = new Sandbox("sbx-test", new HTTPClient(baseURL));
+    await assert.rejects(
+      () => sandbox.info(),
+      (err: unknown) => {
+        assert.ok(err instanceof SandboxError);
+        assert.strictEqual(err.statusCode, 404);
+        return true;
+      },
+    );
   });
 });

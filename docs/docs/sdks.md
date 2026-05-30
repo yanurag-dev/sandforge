@@ -256,6 +256,8 @@ Destroys the sandbox and reclaims VM resources.
 ### Types
 
 ```python
+from dataclasses import dataclass, field
+
 @dataclass
 class SandboxSpec:
     backend: str = "macos-vz"        # "macos-vz" | "linux-kvm" | "linux-firecracker"
@@ -264,7 +266,7 @@ class SandboxSpec:
     disk_gb: int = 10
     timeout_sec: int = 3600
     network_mode: str = "offline"    # "offline" | "fetch" | "full"
-    mounts: List[WorkspaceMount] = []
+    mounts: List[WorkspaceMount] = field(default_factory=list)
 
 @dataclass
 class WorkspaceMount:
@@ -277,7 +279,7 @@ class ExecResult:
     exit_code: int
     stdout: str
     stderr: str
-    artifacts: List[str] = []
+    artifacts: List[str] = field(default_factory=list)
 
 @dataclass
 class SandboxInfo:

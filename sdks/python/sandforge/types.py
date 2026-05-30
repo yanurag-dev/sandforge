@@ -32,17 +32,7 @@ class SandboxSpec:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        spec_dict = asdict(self)
-        # Convert mounts to dicts with snake_case keys
-        spec_dict["mounts"] = [
-            {
-                "host_path": m["host_path"],
-                "guest_path": m["guest_path"],
-                "read_only": m["read_only"],
-            }
-            for m in spec_dict["mounts"]
-        ]
-        return spec_dict
+        return asdict(self)
 
 
 @dataclass
