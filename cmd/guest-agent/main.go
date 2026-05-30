@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/mdlayher/vsock"
@@ -74,6 +75,12 @@ func handleConn(conn net.Conn) {
 		handleExec(conn, env.Payload)
 	case "copyout":
 		handleCopyOut(conn, env.Payload)
+	case "write":
+		handleWrite(conn, env.Payload)
+	case "list":
+		handleList(conn, env.Payload)
+	case "stat":
+		handleStat(conn, env.Payload)
 	default:
 		writeResponse(conn, map[string]string{"error": "unknown op: " + env.Op})
 	}
@@ -152,6 +159,87 @@ func handleCopyOut(w io.Writer, raw json.RawMessage) {
 	}
 
 	writeResponse(w, agentproto.CopyOutResponse{Data: data})
+}
+
+func handleWrite(w io.Writer, raw json.RawMessage) {
+	var req agentproto.WriteFileRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeResponse(w, agentproto.WriteFileResponse{Error: "decode write request: " + err.Error()})
+		return
+	}
+	if req.GuestPath == "" {
+		writeResponse(w, agentproto.WriteFileResponse{Error: "guest_path is required"})
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(req.GuestPath), 0o755); err != nil {
+		writeResponse(w, agentproto.WriteFileResponse{Error: "mkdir: " + err.Error()})
+		return
+	}
+	if err := os.WriteFile(req.GuestPath, req.Data, 0o644); err != nil {
+		writeResponse(w, agentproto.WriteFileResponse{Error: err.Error()})
+		return
+	}
+	writeResponse(w, agentproto.WriteFileResponse{Size: len(req.Data)})
+}
+
+func handleList(w io.Writer, raw json.RawMessage) {
+	var req agentproto.ListRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeResponse(w, agentproto.ListResponse{Error: "decode list request: " + err.Error()})
+		return
+	}
+	if req.GuestPath == "" {
+		writeResponse(w, agentproto.ListResponse{Error: "guest_path is required"})
+		return
+	}
+
+	entries, err := os.ReadDir(req.GuestPath)
+	if err != nil {
+		writeResponse(w, agentproto.ListResponse{Error: err.Error()})
+		return
+	}
+
+	result := make([]agentproto.DirEntry, 0, len(entries))
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		result = append(result, agentproto.DirEntry{
+			Name:    e.Name(),
+			Size:    info.Size(),
+			Mode:    uint32(info.Mode()),
+			IsDir:   e.IsDir(),
+			ModTime: info.ModTime().Unix(),
+		})
+	}
+	writeResponse(w, agentproto.ListResponse{Entries: result})
+}
+
+func handleStat(w io.Writer, raw json.RawMessage) {
+	var req agentproto.StatRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeResponse(w, agentproto.StatResponse{Error: "decode stat request: " + err.Error()})
+		return
+	}
+	if req.GuestPath == "" {
+		writeResponse(w, agentproto.StatResponse{Error: "guest_path is required"})
+		return
+	}
+
+	info, err := os.Stat(req.GuestPath)
+	if err != nil {
+		writeResponse(w, agentproto.StatResponse{Error: err.Error()})
+		return
+	}
+	writeResponse(w, agentproto.StatResponse{
+		Name:    info.Name(),
+		Size:    info.Size(),
+		Mode:    uint32(info.Mode()),
+		IsDir:   info.IsDir(),
+		ModTime: info.ModTime().Unix(),
+	})
 }
 
 func writeResponse(w io.Writer, v any) {

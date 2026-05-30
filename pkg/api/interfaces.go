@@ -38,5 +38,26 @@ type SandboxBackend interface {
 	MountWorkspace(handle string, mount WorkspaceMount) error
 	Exec(handle string, req ExecRequest) (ExecResult, error)
 	CopyOut(handle string, path string, dest string) error
+	WriteFile(handle string, guestPath string, data []byte) (int, error)
+	ListDir(handle string, guestPath string) ([]DirEntry, error)
+	StatPath(handle string, guestPath string) (StatInfo, error)
 	DestroySandbox(handle string) error
+}
+
+// DirEntry is a directory entry returned by ListDir.
+type DirEntry struct {
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	Mode    uint32 `json:"mode"`
+	IsDir   bool   `json:"is_dir"`
+	ModTime int64  `json:"mod_time"`
+}
+
+// StatInfo is file/directory metadata returned by StatPath.
+type StatInfo struct {
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	Mode    uint32 `json:"mode"`
+	IsDir   bool   `json:"is_dir"`
+	ModTime int64  `json:"mod_time"`
 }
