@@ -85,6 +85,36 @@ class SandboxInfo:
         )
 
 
+@dataclass
+class EntryInfo:
+    """Metadata for a single filesystem entry inside a sandbox."""
+
+    name: str
+    path: str
+    size: int
+    is_dir: bool
+    mod_time: str
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "EntryInfo":
+        return EntryInfo(
+            name=data.get("name", ""),
+            path=data.get("path", ""),
+            size=data.get("size", 0),
+            is_dir=data.get("isDir", False),
+            mod_time=data.get("modTime", ""),
+        )
+
+
+@dataclass
+class GitStatus:
+    """Result of `git status` inside a sandbox."""
+
+    branch: str
+    clean: bool
+    stdout: str
+
+
 # Custom exceptions
 class SandforgeException(Exception):
     """Base exception for Sandforge SDK."""

@@ -3,7 +3,7 @@
  * TypeScript SDK for the Sandforge hypervisor sandbox platform.
  */
 
-export { Client, Sandbox, CommandsNamespace, FilesNamespace } from "./sandbox";
+export { Client, Sandbox, CommandsNamespace, FilesNamespace, GitNamespace } from "./sandbox";
 export { HTTPClient } from "./client";
 export {
   SandboxSpec,
@@ -12,4 +12,7 @@ export {
   ExecResult,
   SandboxInfo,
   SandboxError,
+  EntryInfo,
+  WriteFileResponse,
+  GitStatus,
 } from "./types";

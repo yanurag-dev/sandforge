@@ -66,3 +66,30 @@ export class SandboxError extends Error {
     this.name = "SandboxError";
   }
 }
+
+/**
+ * EntryInfo describes a single filesystem entry (file or directory).
+ */
+export interface EntryInfo {
+  name: string;
+  path: string;
+  size: number;
+  isDir: boolean;
+  modTime: string;
+}
+
+/**
+ * WriteFileResponse is returned by the write file API.
+ */
+export interface WriteFileResponse {
+  size: number;
+}
+
+/**
+ * GitStatus represents the output of `git status --porcelain`.
+ */
+export interface GitStatus {
+  branch: string;
+  clean: boolean;
+  stdout: string;
+}
