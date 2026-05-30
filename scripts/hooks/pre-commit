@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "▶ pre-commit: fmt"
+go fmt ./...
+
+# Re-stage any files reformatted by go fmt
+git diff --name-only | xargs -r git add
+
+echo "▶ pre-commit: lint"
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+
+echo "▶ pre-commit: typecheck"
+go vet ./...
+
+echo "✓ pre-commit checks passed"
