@@ -1,5 +1,5 @@
 /**
- * @sandforge/sdk
+ * sandforge-sdk
  * TypeScript SDK for the Sandforge hypervisor sandbox platform.
  */
 

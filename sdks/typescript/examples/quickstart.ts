@@ -1,5 +1,5 @@
 /**
- * Quickstart example for @sandforge/sdk
+ * Quickstart example for sandforge-sdk
  *
  * This example demonstrates basic SDK usage:
  * 1. Create a sandbox

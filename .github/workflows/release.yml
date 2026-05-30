@@ -41,7 +41,7 @@ jobs:
           pip install requests
           python -m unittest discover -s tests -v
 
-  # ── Publish @sandforge/sdk to npm ─────────────────────────────────────────
+  # ── Publish sandforge-sdk to npm ─────────────────────────────────────────
   publish-npm:
     name: Publish npm
     needs: test

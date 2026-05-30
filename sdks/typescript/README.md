@@ -1,17 +1,17 @@
-# @sandforge/sdk
+# sandforge-sdk
 
 TypeScript SDK for the **Sandforge** hypervisor sandbox platform. Create isolated execution environments, run commands, and manage their lifecycle.
 
 ## Installation
 
 ```bash
-npm install @sandforge/sdk
+npm install sandforge-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Client } from "@sandforge/sdk";
+import { Client } from "sandforge-sdk";
 
 // Create a client pointing to the control plane
 const client = new Client("http://localhost:8080");
@@ -168,7 +168,7 @@ class SandboxError extends Error {
 The SDK throws `SandboxError` for API errors with a `statusCode` and descriptive message:
 
 ```typescript
-import { Client, SandboxError } from "@sandforge/sdk";
+import { Client, SandboxError } from "sandforge-sdk";
 
 const client = new Client("http://localhost:8080");
 

@@ -1,5 +1,5 @@
 /**
- * @sandforge/sdk Sandbox class
+ * sandforge-sdk Sandbox class
  * High-level API for sandbox lifecycle and command execution.
  */
 

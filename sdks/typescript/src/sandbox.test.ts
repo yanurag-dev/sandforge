@@ -1,5 +1,5 @@
 /**
- * @sandforge/sdk integration tests using Node built-in http mock server.
+ * sandforge-sdk integration tests using Node built-in http mock server.
  * Runs with: node --test dist/**\/*.test.js
  */
 
