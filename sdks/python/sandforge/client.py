@@ -5,6 +5,7 @@ import secrets
 from typing import Dict, Any, Optional
 import requests
 
+from .pty import PTYNamespace
 from .types import (
     SandboxSpec,
     ExecRequest,
@@ -244,6 +245,7 @@ class SandboxHandle:
         self.commands = CommandsAPI(self)
         self.files = FilesAPI(self)
         self.git = GitAPI(self)
+        self.pty = PTYNamespace(self)
 
     def kill(self) -> None:
         """Destroy the sandbox.

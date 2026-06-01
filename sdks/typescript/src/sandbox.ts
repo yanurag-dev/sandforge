@@ -4,6 +4,7 @@
  */
 
 import { HTTPClient } from "./client";
+import { PTYNamespace } from "./pty";
 import {
   SandboxSpec,
   ExecRequest,
@@ -199,6 +200,7 @@ export class Sandbox {
   commands: CommandsNamespace;
   files: FilesNamespace;
   git: GitNamespace;
+  pty: PTYNamespace;
   private http: HTTPClient;
 
   constructor(id: string, http: HTTPClient) {
@@ -207,6 +209,7 @@ export class Sandbox {
     this.commands = new CommandsNamespace(id, http);
     this.files = new FilesNamespace(id, http);
     this.git = new GitNamespace(id, http);
+    this.pty = new PTYNamespace(id, http.url());
   }
 
   /**
