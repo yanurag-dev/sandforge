@@ -20,6 +20,11 @@ export class HTTPClient {
     this.timeoutMs = timeoutMs;
   }
 
+  /** url returns the configured base URL (used to derive the PTY WebSocket URL). */
+  url(): string {
+    return this.baseURL;
+  }
+
   /**
    * do performs a low-level HTTP request, handles JSON marshal/unmarshal,
    * and converts HTTP errors to SandboxError.

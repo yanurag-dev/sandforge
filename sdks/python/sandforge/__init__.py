@@ -24,6 +24,7 @@ Example:
 """
 
 from .client import Client, SandboxHandle, CommandsAPI, FilesAPI, GitAPI
+from .pty import PTYNamespace, PTYSession, PTYEvent
 
 # Alias for cleaner ergonomics
 Sandbox = SandboxHandle
@@ -51,6 +52,9 @@ __all__ = [
     "CommandsAPI",
     "FilesAPI",
     "GitAPI",
+    "PTYNamespace",
+    "PTYSession",
+    "PTYEvent",
     "SandboxSpec",
     "WorkspaceMount",
     "ExecRequest",

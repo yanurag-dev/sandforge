@@ -31,7 +31,11 @@ setup(
         "requests>=2.33.0",
     ],
     extras_require={
+        "pty": [
+            "websocket-client>=1.0",
+        ],
         "dev": [
+            "websocket-client>=1.0",
             "pytest>=6.0",
             "pytest-cov>=2.10",
             "black>=21.0",
