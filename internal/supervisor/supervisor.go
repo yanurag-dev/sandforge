@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/yanurag-dev/sandforge/internal/policy"
+	"github.com/yanurag-dev/sandforge/pkg/agentproto"
 	"github.com/yanurag-dev/sandforge/pkg/api"
 )
 
@@ -17,6 +18,7 @@ const (
 	StateProvisioning     State = "provisioning"
 	StateReady            State = "ready"
 	StateExecuting        State = "executing"
+	StateInteractive      State = "interactive"
 	StateWritingFile      State = "writing_file"
 	StateCopyingArtifacts State = "copying_artifacts"
 	StateDestroying       State = "destroying"
@@ -206,6 +208,80 @@ func (s *Supervisor) RunCommand(id string, req api.ExecRequest) (api.ExecResult,
 	}
 
 	return result, nil
+}
+
+// ptySession wraps a backend PTYSession so the supervisor's StateInteractive is
+// reset to StateReady exactly when the session ENDS — not when StartPTY returns.
+// A PTY session is long-lived: StartPTY hands back a live session that outlives
+// the call, so the synchronous defer pattern RunCommand uses would wrongly snap
+// the state back to ready while the shell is still running. Resetting on Close
+// ties the transition to the session lifecycle (owned by the caller, e.g. the
+// WebSocket handler) instead.
+type ptySession struct {
+	api.PTYSession
+	instance *SandboxInstance
+	once     sync.Once
+}
+
+func (p *ptySession) Close() error {
+	p.once.Do(func() {
+		p.instance.mu.Lock()
+		// Only reset if we still own the state; another operation (e.g. Stop)
+		// may have moved it on already.
+		if p.instance.State == StateInteractive {
+			p.instance.State = StateReady
+		}
+		p.instance.mu.Unlock()
+	})
+	return p.PTYSession.Close()
+}
+
+// StartPTY opens an interactive PTY session in a ready sandbox. The returned
+// session's Close() resets the sandbox back to StateReady, so callers MUST close
+// it when the interactive session ends. Requires a backend that implements
+// api.PTYBackend; otherwise returns an error.
+func (s *Supervisor) StartPTY(id string, req agentproto.PTYStartRequest) (api.PTYSession, error) {
+	instance, err := s.lookupInstance(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Policy gate: interactive sessions are an explicit opt-in.
+	if err := s.policy.EvaluatePTY(); err != nil {
+		return nil, err
+	}
+
+	// The backend may not support PTY (e.g. a future KVM backend before it
+	// lands this capability). Degrade gracefully rather than panic.
+	ptyBackend, ok := s.backend.(api.PTYBackend)
+	if !ok {
+		return nil, errors.New("backend does not support interactive PTY sessions")
+	}
+
+	// Atomically check ready-state and transition to interactive so a
+	// concurrent RunCommand/WriteFile cannot collide with the live session.
+	instance.mu.Lock()
+	if instance.State != StateReady {
+		state := instance.State
+		instance.mu.Unlock()
+		return nil, fmt.Errorf("sandbox is in state %s, must be %s to start a PTY", state, StateReady)
+	}
+	instance.State = StateInteractive
+	handle := instance.Handle
+	instance.mu.Unlock()
+
+	sess, err := ptyBackend.StartPTY(handle, req)
+	if err != nil {
+		// Roll the state back; the session never started.
+		instance.mu.Lock()
+		if instance.State == StateInteractive {
+			instance.State = StateReady
+		}
+		instance.mu.Unlock()
+		return nil, err
+	}
+
+	return &ptySession{PTYSession: sess, instance: instance}, nil
 }
 
 // GetState returns the current state of a sandbox by ID.

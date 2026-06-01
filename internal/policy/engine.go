@@ -14,6 +14,7 @@ var (
 	ErrResourceLimitExceeded = errors.New("requested resource exceeds policy limits")
 	ErrInvalidNetworkMode    = errors.New("requested network mode is not allowed")
 	ErrForbiddenCommand      = errors.New("command is not allowed by policy")
+	ErrInteractiveDisabled   = errors.New("interactive PTY sessions are not allowed by policy")
 )
 
 type Engine struct {
@@ -24,6 +25,12 @@ type Engine struct {
 	MaxDiskGb           int
 	AllowedNetworkModes []string
 	AllowedCommands     []string
+	// AllowInteractive opts in to interactive PTY sessions. It defaults to
+	// false because a PTY hands the caller a live shell, which can spawn any
+	// program — the AllowedCommands allowlist (which only matches Command[0])
+	// cannot constrain it. For interactive sessions the VM itself is the
+	// containment boundary, so enabling this must be a deliberate choice.
+	AllowInteractive bool
 }
 
 func (e *Engine) EvaluateMount(mount api.WorkspaceMount) error {
@@ -121,6 +128,16 @@ func (e *Engine) EvaluateExec(req api.ExecRequest) error {
 
 	if !allowed {
 		return ErrForbiddenCommand
+	}
+	return nil
+}
+
+// EvaluatePTY decides whether an interactive PTY session may start. Unlike
+// EvaluateExec there is no command allowlist to apply — an interactive shell
+// can run anything — so the gate is the single AllowInteractive opt-in.
+func (e *Engine) EvaluatePTY() error {
+	if !e.AllowInteractive {
+		return ErrInteractiveDisabled
 	}
 	return nil
 }
