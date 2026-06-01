@@ -3,6 +3,7 @@
 package vz
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -17,6 +18,12 @@ import (
 
 // guestAgentPort is the VSOCK port the in-guest agent listens on.
 const guestAgentPort uint32 = 2222
+
+// Compile-time guarantees that VZBackend supports interactive PTY sessions.
+var (
+	_ api.PTYBackend = (*VZBackend)(nil)
+	_ api.PTYSession = (*PTYSession)(nil)
+)
 
 // sandboxEntry bundles the VM with its socket device so we can dial VSOCK later.
 type sandboxEntry struct {
@@ -250,6 +257,74 @@ func (v *VZBackend) Exec(handle string, req api.ExecRequest) (api.ExecResult, er
 		ExitCode: resp.ExitCode,
 		Stdout:   resp.Stdout,
 		Stderr:   resp.Stderr,
+	}, nil
+}
+
+// PTYSession is a live interactive session bound to a persistent VSOCK
+// connection to the guest agent. Unlike the one-shot ops it does NOT close the
+// connection after a single exchange — it stays open and streams StreamEvent
+// values in both directions until the guest's PTY child exits.
+//
+// Single-writer-per-direction: the caller must funnel SendStdin/Resize through
+// one goroutine (sole writer of conn) and NextEvent through another (sole
+// reader of conn). The connection allows one concurrent reader + one writer.
+type PTYSession struct {
+	conn net.Conn
+	enc  *json.Encoder // host → guest (stdin/resize)
+	dec  *json.Decoder // guest → host (stdout/exit/error)
+}
+
+// SendStdin forwards input bytes to the guest PTY master.
+func (s *PTYSession) SendStdin(data []byte) error {
+	return agentproto.WriteEvent(s.enc, agentproto.StreamEvent{Event: "stdin", Data: data})
+}
+
+// Resize updates the guest terminal window size (raises SIGWINCH in the child).
+func (s *PTYSession) Resize(cols, rows uint16) error {
+	return agentproto.WriteEvent(s.enc, agentproto.StreamEvent{Event: "resize", Cols: cols, Rows: rows})
+}
+
+// NextEvent reads the next event from the guest. It surfaces the {event:"exit"}
+// event normally; the following call returns io.EOF once the guest closes the
+// connection, matching the io.Reader convention.
+func (s *PTYSession) NextEvent() (agentproto.StreamEvent, error) {
+	var ev agentproto.StreamEvent
+	if err := s.dec.Decode(&ev); err != nil {
+		return agentproto.StreamEvent{}, err
+	}
+	return ev, nil
+}
+
+// Close shuts the connection, which signals the guest agent to terminate and
+// reap the PTY child.
+func (s *PTYSession) Close() error {
+	return s.conn.Close()
+}
+
+// StartPTY opens a persistent VSOCK connection to the guest agent and starts an
+// interactive PTY session. Unlike Exec it does not defer-close the connection
+// and clears the dial deadline so the session can be long-lived.
+func (v *VZBackend) StartPTY(handle string, req agentproto.PTYStartRequest) (api.PTYSession, error) {
+	conn, err := v.dialGuest(handle)
+	if err != nil {
+		return nil, fmt.Errorf("startpty: dial guest: %w", err)
+	}
+
+	// dialGuest set a 30s deadline; an interactive session must outlive it.
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("startpty: clear deadline: %w", err)
+	}
+
+	if err := agentproto.WriteRequest(conn, agentproto.OpPTY, req); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("startpty: write request: %w", err)
+	}
+
+	return &PTYSession{
+		conn: conn,
+		enc:  json.NewEncoder(conn),
+		dec:  json.NewDecoder(conn),
 	}, nil
 }
 

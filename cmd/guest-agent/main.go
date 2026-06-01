@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/mdlayher/vsock"
 
 	"github.com/yanurag-dev/sandforge/pkg/agentproto"
@@ -74,6 +75,8 @@ func handleConn(conn net.Conn) {
 	switch env.Op {
 	case "exec":
 		handleExec(conn, env.Payload)
+	case agentproto.OpPTY:
+		handlePTY(conn, env.Payload)
 	case "copyout":
 		handleCopyOut(conn, env.Payload)
 	case "write":
@@ -140,6 +143,99 @@ func handleExec(w io.Writer, raw json.RawMessage) {
 		Stdout:   stdoutBuf.String(),
 		Stderr:   stderrBuf.String(),
 	})
+}
+
+// handlePTY runs an interactive PTY-backed session. It opens a pseudo-terminal,
+// starts the requested command (default: an interactive login shell) attached to
+// it, and bridges the PTY to the persistent VSOCK connection:
+//
+//	reader goroutine: conn → PTY  (sole reader of conn, sole writer of PTY)
+//	this  goroutine : PTY  → conn (sole reader of PTY, sole writer of conn)
+//
+// Keeping every conn write in this one goroutine preserves the
+// single-writer-per-direction invariant (the exit event goes out the same path
+// as stdout, never concurrently with it).
+func handlePTY(conn net.Conn, raw json.RawMessage) {
+	enc := json.NewEncoder(conn)
+	writeEv := func(ev agentproto.StreamEvent) { _ = agentproto.WriteEvent(enc, ev) }
+
+	var req agentproto.PTYStartRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeEv(agentproto.StreamEvent{Event: "error", Msg: "decode pty request: " + err.Error()})
+		return
+	}
+
+	command := req.Command
+	if len(command) == 0 {
+		command = []string{"/bin/bash", "-i", "-l"}
+	}
+
+	// #nosec G204 - launching arbitrary user commands inside the sandbox VM is
+	// the guest agent's entire purpose; containment is the VM boundary.
+	cmd := exec.Command(command[0], command[1:]...)
+	if req.CWD != "" {
+		cmd.Dir = req.CWD
+	}
+	if len(req.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range req.Env {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		writeEv(agentproto.StreamEvent{Event: "error", Msg: "start pty: " + err.Error()})
+		return
+	}
+	defer func() { _ = ptmx.Close() }()
+
+	if req.Cols > 0 || req.Rows > 0 {
+		_ = pty.Setsize(ptmx, &pty.Winsize{Cols: req.Cols, Rows: req.Rows})
+	}
+
+	// Reader goroutine: drain control events from the host into the PTY.
+	go func() {
+		dec := json.NewDecoder(conn)
+		for {
+			var ev agentproto.StreamEvent
+			if err := dec.Decode(&ev); err != nil {
+				// Host closed the connection — close the PTY master so the
+				// child receives SIGHUP and we fall through to Wait below.
+				_ = ptmx.Close()
+				return
+			}
+			switch ev.Event {
+			case "stdin":
+				_, _ = ptmx.Write(ev.Data)
+			case "resize":
+				_ = pty.Setsize(ptmx, &pty.Winsize{Cols: ev.Cols, Rows: ev.Rows})
+			}
+		}
+	}()
+
+	// Pump PTY output to the host until the slave closes (child exited).
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := ptmx.Read(buf)
+		if n > 0 {
+			writeEv(agentproto.StreamEvent{Event: "stdout", Data: append([]byte(nil), buf[:n]...)})
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	// Reap the child and report its exit code.
+	exitCode := 0
+	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+	writeEv(agentproto.StreamEvent{Event: "exit", Code: exitCode})
 }
 
 func handleCopyOut(w io.Writer, raw json.RawMessage) {

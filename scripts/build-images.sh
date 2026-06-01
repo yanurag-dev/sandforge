@@ -62,6 +62,9 @@ echo "[init] proc mounted"
 mount -t sysfs none /sys
 echo "[init] sysfs mounted"
 mount -t devtmpfs none /dev 2>/dev/null && echo "[init] devtmpfs mounted" || echo "[init] devtmpfs failed (ok)"
+# devpts provides /dev/ptmx + /dev/pts/* — required for PTY (interactive) sessions.
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null && echo "[init] devpts mounted" || echo "[init] devpts failed (ok)"
 
 # Mount virtiofs share(s) — host VZ backend exposes them with tags mount0, mount1, ...
 # Convention: mount0 → /workspace (used by sandforge run transient mode).
