@@ -238,3 +238,23 @@ func TestEvaluateExec(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluatePTY(t *testing.T) {
+	tests := []struct {
+		name             string
+		allowInteractive bool
+		wantError        error
+	}{
+		{name: "Disabled by default", allowInteractive: false, wantError: ErrInteractiveDisabled},
+		{name: "Enabled when opted in", allowInteractive: true, wantError: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := &Engine{AllowInteractive: tt.allowInteractive}
+			if err := engine.EvaluatePTY(); err != tt.wantError {
+				t.Errorf("EvaluatePTY() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}
