@@ -1,5 +1,7 @@
 package api
 
+import "github.com/yanurag-dev/sandforge/pkg/agentproto"
+
 // From ARCHITECTURE.md Section 15
 
 type SandboxSpec struct {
@@ -43,6 +45,34 @@ type SandboxBackend interface {
 	ListDir(handle string, guestPath string) ([]DirEntry, error)
 	StatPath(handle string, guestPath string) (StatInfo, error)
 	DestroySandbox(handle string) error
+}
+
+// PTYSession is a live interactive terminal session backed by a PTY inside the
+// guest. It bridges a persistent guest connection to a client (e.g. a WebSocket
+// handler). Callers must observe a single-writer-per-direction discipline:
+// SendStdin/Resize from one goroutine, NextEvent from another. The underlying
+// connection tolerates one concurrent reader and one concurrent writer, but not
+// two concurrent writers.
+type PTYSession interface {
+	// SendStdin forwards keystrokes/input to the PTY master.
+	SendStdin(data []byte) error
+	// Resize updates the terminal window size (triggers SIGWINCH in the guest).
+	Resize(cols, rows uint16) error
+	// NextEvent returns the next event from the guest (stdout/exit/error). It
+	// returns the {event:"exit"} event normally, then io.EOF on the following
+	// call once the session has fully ended — mirroring the io.Reader
+	// convention so callers loop until errors.Is(err, io.EOF).
+	NextEvent() (agentproto.StreamEvent, error)
+	// Close tears down the session: closes the connection, which signals the
+	// guest to terminate the PTY child and reap it.
+	Close() error
+}
+
+// PTYBackend is an OPTIONAL capability a SandboxBackend may implement to support
+// interactive PTY sessions. Callers type-assert a SandboxBackend to PTYBackend
+// and degrade gracefully when it is absent (e.g. backends without PTY support).
+type PTYBackend interface {
+	StartPTY(handle string, req agentproto.PTYStartRequest) (PTYSession, error)
 }
 
 // DirEntry is a directory entry returned by ListDir.
